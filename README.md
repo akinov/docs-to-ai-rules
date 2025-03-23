@@ -102,3 +102,29 @@ docs-to-ai-rules --sync --dry-run
 ## Adding Custom Services
 
 To add a new service, create a new service class in the `src/services` directory and register it with the `ServiceManager`.
+
+## Development
+
+### Testing
+
+The project includes unit and integration tests. To run them:
+
+```bash
+# Run all tests
+npm test
+
+# Run only unit tests
+npm run test:unit
+
+# Run only integration tests
+npm run test:int
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+### CI/CD
+
+This project uses GitHub Actions for continuous integration. The workflow automatically runs tests on push to the main branch and on pull requests.
+
+You can see the current CI status in the GitHub repository.
