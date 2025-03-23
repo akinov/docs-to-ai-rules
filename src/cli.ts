@@ -27,16 +27,16 @@ program.parse();
 
 const options = program.opts();
 
-// 絶対パスに変換
+// Convert to absolute path
 const sourceDir = path.resolve(process.cwd(), options.source);
 const excludeFiles = options.exclude.split(',').map((file: string) => file.trim());
 
-// サービスのリストを取得
+// Get list of services
 const serviceNames = options.services.split(',').map((s: string) => s.trim().toLowerCase());
 const availableServices = serviceManager.getAllServiceNames();
 const services = serviceManager.getServices(serviceNames);
 
-// 存在しないサービスをチェック
+// Check for non-existent services
 const invalidServices = serviceNames.filter((name: string) => !availableServices.includes(name));
 if (invalidServices.length > 0) {
   console.error(`Error: Unknown service(s): ${invalidServices.join(', ')}`);
@@ -44,24 +44,24 @@ if (invalidServices.length > 0) {
   process.exit(1);
 }
 
-// サービスが指定されているか確認
+// Verify that services are specified
 if (services.length === 0) {
   console.error('Error: No valid services specified');
   console.log(`Available services: ${availableServices.join(', ')}`);
   process.exit(1);
 }
 
-// カスタム拡張子の設定
+// Set custom extension
 if (options.ext && options.ext !== 'mdc') {
   services.forEach(service => {
-    // 拡張子を設定（サービスクラスにsetTargetExtensionメソッドがあると仮定）
+    // Assuming the service class has a setTargetExtension method
     if (typeof service.setTargetExtension === 'function') {
       service.setTargetExtension(options.ext);
     }
   });
 }
 
-// 変換の実行
+// Execute conversion
 convertDocs({
   sourceDir,
   services,

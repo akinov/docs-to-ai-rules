@@ -22,14 +22,14 @@ export function processDirectory(config: Config): ProcessResult {
     if (file.endsWith('.md') && !excludeFiles.includes(file)) {
       const sourcePath = path.join(sourceDir, file);
       
-      // 各サービスに対してファイルを処理
+      // Process file for each service
       for (const service of services) {
         const targetDir = service.getTargetDirectory();
         const targetExt = service.getTargetExtension();
         const targetFile = file.replace('.md', `.${targetExt}`);
         const targetPath = path.join(targetDir, targetFile);
         
-        // ディレクトリが存在しない場合は作成
+        // Create directory if it doesn't exist
         if (!fs.existsSync(targetDir)) {
           fs.mkdirSync(targetDir, { recursive: true });
         }

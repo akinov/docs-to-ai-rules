@@ -1,19 +1,19 @@
-// 各サービスをインポート
+// Import each service
 import { CursorService } from './cursor';
 import { ClineService } from './cline';
 import { OutputService, BaseService } from './base';
 
-// 全サービスをまとめて管理するクラス
+// Class to manage all services
 export class ServiceManager {
   private services: Map<string, OutputService> = new Map();
 
   constructor() {
-    // デフォルトで利用可能なサービスを登録
+    // Register services available by default
     this.registerDefaultServices();
   }
 
   private registerDefaultServices(): void {
-    // 各サービスを登録
+    // Register each service
     this.registerService(new CursorService());
     this.registerService(new ClineService());
   }

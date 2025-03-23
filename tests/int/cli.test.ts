@@ -2,13 +2,13 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Command } from 'commander';
 import { ServiceManager } from '../../src/services';
 
-// convertDocsをモック化
+// Mock convertDocs
 const convertDocsMock = vi.fn();
 vi.mock('../../src/index', () => ({
   convertDocs: convertDocsMock
 }));
 
-// ServiceManagerのmockedインスタンスを作成
+// Create mocked instance of ServiceManager
 vi.mock('../../src/services', () => {
   const mockGetService = vi.fn().mockImplementation((name: string) => {
     if (name === 'cursor') {
@@ -36,51 +36,51 @@ vi.mock('../../src/services', () => {
   };
 });
 
-// process.exitをモック化
+// Mock process.exit
 const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
   return undefined as never;
 });
 
-// コンソール出力をモック化
+// Mock console output
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 
 describe('CLI', () => {
   beforeEach(() => {
-    // コンソール出力をモック化
+    // Mock console output
     console.log = vi.fn();
     console.error = vi.fn();
     
-    // モックをクリア
+    // Clear mocks
     convertDocsMock.mockClear();
 
-    // importCacheをクリア
+    // Clear importCache
     vi.resetModules();
   });
   
   afterEach(() => {
-    // 元に戻す
+    // Restore originals
     console.log = originalConsoleLog;
     console.error = originalConsoleError;
     vi.clearAllMocks();
   });
   
-  test('CLIが正しく動作する', async () => {
-    // CLIを実行する前にprocess.argvをセット
+  test('CLI works correctly', async () => {
+    // Set process.argv before executing CLI
     process.argv = ['node', 'cli.js', '--services', 'cursor'];
     
-    // CLIモジュールを読み込む（これによってCLIが実行される）
+    // Load CLI module (this causes CLI to execute)
     await import('../../src/cli');
     
-    // convertDocsが呼ばれたことを確認
+    // Verify that convertDocs was called
     expect(convertDocsMock).toHaveBeenCalled();
   });
   
-  test('存在しないサービスを指定するとエラーになる', async () => {
-    // CLIを実行する前にprocess.argvをセット
+  test('Error when specifying non-existent service', async () => {
+    // Set process.argv before executing CLI
     process.argv = ['node', 'cli.js', '--services', 'unknown'];
     
-    // CLIモジュールを読み込む
+    // Load CLI module
     await import('../../src/cli');
     
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Unknown service'));

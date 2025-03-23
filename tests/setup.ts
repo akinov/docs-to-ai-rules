@@ -1,11 +1,11 @@
 import { expect, afterEach, test } from 'vitest';
 
-// テストの自動クリーンアップ
+// Automatic test cleanup
 afterEach(() => {
-  // 各テスト後の後処理
+  // Post-processing after each test
 });
 
-// 設定のためのダミーテスト
+// Dummy test for setup
 test('setup', () => {
   expect(true).toBe(true);
 }); 

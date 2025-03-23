@@ -1,4 +1,4 @@
-// サービスのインターフェース定義
+// Interface definition for services
 export interface OutputService {
   name: string;
   getTargetDirectory(): string;
@@ -6,7 +6,7 @@ export interface OutputService {
   setTargetExtension(extension: string): void;
 }
 
-// 基本サービスクラス
+// Base service class
 export abstract class BaseService implements OutputService {
   constructor(
     public readonly name: string,
