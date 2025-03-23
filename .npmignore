@@ -39,6 +39,7 @@ yarn-error.log
 
 # Documentation (keep README.md)
 doc/
+docs/
 
 # Temporary files
 *.log

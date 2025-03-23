@@ -26,7 +26,7 @@ docs-to-ai-rules [options]
 
 | Option     | Short | Description | Default |
 |------------|-------|-------------|---------|
-| --source   | -s    | Source directory | `doc/rules` |
+| --source   | -s    | Source directory | `docs/rules` |
 | --services |       | Output services (comma-separated) | `cursor` |
 | --exclude  | -x    | Files to exclude (comma-separated) | `README.md` |
 | --dry-run  | -d    | Check for updates without modifying files | `false` |
