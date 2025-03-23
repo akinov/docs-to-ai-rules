@@ -6,10 +6,12 @@ tests/
 tmp-test/
 vitest.config.ts
 coverage/
+.eslintrc.json
 
 # Development tools
 .git/
 .gitignore
+.github/
 .cursor/
 .cline/
 custom-output/
