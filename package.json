@@ -1,12 +1,23 @@
 {
   "name": "docs-to-ai-rules",
   "version": "1.0.0",
-  "description": "Convert Markdown docs to AI Rules docs.",
+  "description": "A tool for generating rules files for AI agents from Markdown documents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "docs-to-ai-rules": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest",
+    "prepare": "npm run build"
+  },
   "keywords": [
     "ai",
-    "rules",
     "markdown",
-    "mdc",
+    "rules",
     "cursor"
   ],
   "homepage": "https://github.com/akinov/docs-to-ai-rules#readme",
@@ -17,11 +28,14 @@
     "type": "git",
     "url": "git+https://github.com/akinov/docs-to-ai-rules.git"
   },
-  "license": "ISC",
   "author": "kuronekopunk",
-  "type": "commonjs",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
+  },
+  "dependencies": {
+    "commander": "^11.1.0"
   }
 }
