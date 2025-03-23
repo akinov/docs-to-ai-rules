@@ -29,6 +29,7 @@ docs-to-ai-rules [options]
 | --source   | -s    | Source directory | `doc/rules` |
 | --services |       | Output services (comma-separated) | `cursor` |
 | --exclude  | -x    | Files to exclude (comma-separated) | `README.md` |
+| --dry-run  | -d    | Check for updates without modifying files | `false` |
 
 ### Supported Services
 
@@ -49,6 +50,9 @@ docs-to-ai-rules --services cursor,cline
 
 # Exclude multiple files
 docs-to-ai-rules --exclude "README.md,CHANGELOG.md"
+
+# Check which files need updates without modifying them
+docs-to-ai-rules --dry-run
 ```
 
 ## How It Works
@@ -59,6 +63,15 @@ This tool processes Markdown files in the `doc/rules` directory (or the specifie
 - For Cline: `./.cline/rules` with `.md` extension
 
 If multiple services are specified, files will be generated in each service's directory with the appropriate file extension for that service.
+
+### Dry Run Mode
+
+When the `--dry-run` option is used, the tool will check for files that need updates but won't make any changes. This is useful to see which files would be updated before actually modifying them.
+
+In dry run mode:
+- No directories will be created
+- No files will be copied or modified
+- The tool will display which files need updates
 
 ## Adding Custom Services
 

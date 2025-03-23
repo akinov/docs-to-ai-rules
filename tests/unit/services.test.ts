@@ -10,7 +10,7 @@ class TestService extends BaseService {
 }
 
 describe('BaseService', () => {
-  test('基本的なメソッドが正しく動作する', () => {
+  test('basic methods work correctly', () => {
     const service = new TestService();
     
     expect(service.name).toBe('test');
@@ -29,13 +29,13 @@ describe('ServiceManager', () => {
     manager = new ServiceManager();
   });
   
-  test('デフォルトのサービスが登録されている', () => {
+  test('default services are registered', () => {
     const services = manager.getAllServiceNames();
     expect(services).toContain('cursor');
     expect(services).toContain('cline');
   });
   
-  test('サービスを取得できる', () => {
+  test('can get a service', () => {
     const cursorService = manager.getService('cursor');
     expect(cursorService).toBeInstanceOf(CursorService);
     
@@ -43,7 +43,7 @@ describe('ServiceManager', () => {
     expect(clineService).toBeInstanceOf(ClineService);
   });
   
-  test('サービスを登録できる', () => {
+  test('can register a service', () => {
     const testService = new TestService();
     manager.registerService(testService);
     
@@ -51,7 +51,7 @@ describe('ServiceManager', () => {
     expect(manager.getAllServiceNames()).toContain('test');
   });
   
-  test('複数のサービスを取得できる', () => {
+  test('can get multiple services', () => {
     const services = manager.getServices(['cursor', 'cline', 'nonexistent']);
     
     expect(services.length).toBe(2);

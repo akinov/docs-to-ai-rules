@@ -1,23 +1,26 @@
 import fs from 'fs';
-import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi, MockInstance } from 'vitest';
 import { convertDocs } from '../../src/index';
 import { BaseService } from '../../src/services';
+import { processDirectory } from '../../src/processor';
 
 vi.mock('fs');
 vi.mock('../../src/processor', () => ({
   processDirectory: vi.fn().mockReturnValue({
     processedCount: 2,
     processedFiles: ['file1.md', 'file2.md'],
-    services: ['mock']
+    services: ['mock'],
+    updatedCount: 1,
+    updatedFiles: ['file1.md']
   })
 }));
 
-// コンソール出力をモック化
+// Mock console output
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 
 describe('index', () => {
-  // モックサービスを作成
+  // Create mock service
   class MockService extends BaseService {
     constructor() {
       super('mock', '/tmp/mock');
@@ -30,30 +33,30 @@ describe('index', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    // process.exitをモック化
+    // Mock process.exit
     exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       return undefined as never;
     });
     
-    // コンソール出力をモック化
+    // Mock console output
     console.log = vi.fn();
     console.error = vi.fn();
     
     mockService = new MockService();
     
-    // fs.existsSyncのモック
+    // Mock fs.existsSync
     (fs.existsSync as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
     (fs.mkdirSync as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {});
   });
   
   afterEach(() => {
-    // 元に戻す
+    // Restore originals
     console.log = originalConsoleLog;
     console.error = originalConsoleError;
     exitSpy.mockRestore();
   });
   
-  test('convertDocsが正しく実行される', () => {
+  test('convertDocs executes correctly', () => {
     const config = {
       sourceDir: '/tmp/source',
       services: [mockService],
@@ -62,14 +65,14 @@ describe('index', () => {
     
     convertDocs(config);
     
-    // ターゲットディレクトリの存在確認
+    // Check target directory existence
     expect(fs.existsSync).toHaveBeenCalled();
     
-    // 処理完了のログが出力されたか
+    // Check if completion log was output
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Processing complete'));
   });
   
-  test('ソースディレクトリが存在しない場合はエラーになる', () => {
+  test('error occurs when source directory does not exist', () => {
     (fs.existsSync as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
     
     const config = {
@@ -81,5 +84,45 @@ describe('index', () => {
     
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('does not exist'));
     expect(process.exit).toHaveBeenCalledWith(1);
+  });
+
+  test('dry run mode works correctly', () => {
+    const config = {
+      sourceDir: '/tmp/source',
+      services: [mockService],
+      excludeFiles: ['README.md'],
+      dryRun: true
+    };
+    
+    convertDocs(config);
+    
+    // Check directories are not created
+    expect(fs.mkdirSync).not.toHaveBeenCalled();
+    
+    // Check dry run logs are output
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[Dry Run] 1 files need updates'));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[Dry Run] File needs update: file1.md'));
+  });
+
+  test('dry run mode when no files need updates', () => {
+    // Mock for case where no files need updates
+    (processDirectory as unknown as MockInstance).mockReturnValueOnce({
+      processedCount: 2,
+      processedFiles: ['file1.md', 'file2.md'],
+      services: ['mock'],
+      updatedCount: 0,
+      updatedFiles: []
+    });
+
+    const config = {
+      sourceDir: '/tmp/source',
+      services: [mockService],
+      dryRun: true
+    };
+    
+    convertDocs(config);
+    
+    // Check dry run logs are output
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[Dry Run] No files need updates'));
   });
 }); 

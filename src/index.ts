@@ -7,10 +7,11 @@ export interface Config {
   sourceDir: string;
   services: OutputService[];
   excludeFiles?: string[];
+  dryRun?: boolean;
 }
 
 export function convertDocs(config: Config): void {
-  const { sourceDir, services, excludeFiles = ['README.md'] } = config;
+  const { sourceDir, services, excludeFiles = ['README.md'], dryRun = false } = config;
 
   // Check if source directory exists
   if (!fs.existsSync(sourceDir)) {
@@ -23,8 +24,12 @@ export function convertDocs(config: Config): void {
     const targetDir = service.getTargetDirectory();
     try {
       if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-        console.log(`Created directory ${targetDir}`);
+        if (!dryRun) {
+          fs.mkdirSync(targetDir, { recursive: true });
+          console.log(`Created directory ${targetDir}`);
+        } else {
+          console.log(`[Dry Run] Would create directory ${targetDir}`);
+        }
       }
     } catch (err) {
       console.error(`Error: Could not create directory ${targetDir}`, err);
@@ -35,7 +40,19 @@ export function convertDocs(config: Config): void {
   // Execute conversion
   try {
     const result = processDirectory(config);
-    console.log(`Processing complete: Converted ${result.processedCount} files to ${result.services.length} services`);
+    
+    if (dryRun) {
+      if (result.updatedCount > 0) {
+        console.log(`[Dry Run] ${result.updatedCount} files need updates`);
+        for (const file of result.updatedFiles) {
+          console.log(`[Dry Run] File needs update: ${file}`);
+        }
+      } else {
+        console.log(`[Dry Run] No files need updates`);
+      }
+    } else {
+      console.log(`Processing complete: Converted ${result.processedCount} files to ${result.services.length} services`);
+    }
   } catch (err) {
     console.error('Error during file conversion:', err);
     process.exit(1);

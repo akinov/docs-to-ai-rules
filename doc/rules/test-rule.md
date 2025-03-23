@@ -19,3 +19,4 @@ Hello, I'm here to help.
 
 Feel free to ask if you have any other questions.
 ``` 
+## Updated rule

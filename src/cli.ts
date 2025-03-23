@@ -9,9 +9,9 @@ import { readFileSync } from 'fs';
 const program = new Command();
 const serviceManager = new ServiceManager();
 
-// package.jsonからバージョン情報を読み込む
+// Load version info from package.json
 const packageJson = JSON.parse(
-  readFileSync(path.join(__dirname, '../package.json'), 'utf8')
+  readFileSync(path.join(__dirname, '../../package.json'), 'utf8')
 );
 
 program
@@ -26,7 +26,8 @@ program
     'Target services (comma-separated)', 
     'cursor'
   )
-  .option('-x, --exclude <files>', 'Files to exclude (comma-separated)', 'README.md');
+  .option('-x, --exclude <files>', 'Files to exclude (comma-separated)', 'README.md')
+  .option('-d, --dry-run', 'Check for updates without modifying files');
 
 program.parse();
 
@@ -35,6 +36,7 @@ const options = program.opts();
 // Convert to absolute path
 const sourceDir = path.resolve(process.cwd(), options.source);
 const excludeFiles = options.exclude.split(',').map((file: string) => file.trim());
+const dryRun = !!options.dryRun;
 
 // Get list of services
 const serviceNames = options.services.split(',').map((s: string) => s.trim().toLowerCase());
@@ -60,5 +62,6 @@ if (services.length === 0) {
 convertDocs({
   sourceDir,
   services,
-  excludeFiles
+  excludeFiles,
+  dryRun
 }); 

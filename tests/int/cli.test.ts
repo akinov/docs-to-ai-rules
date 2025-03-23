@@ -1,6 +1,13 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Command } from 'commander';
 import { ServiceManager } from '../../src/services';
+import fs from 'fs';
+
+// Mock file system
+vi.mock('fs', () => ({
+  readFileSync: vi.fn().mockReturnValue('{"version": "0.1.0"}'),
+  existsSync: vi.fn().mockReturnValue(true)
+}));
 
 // Mock convertDocs
 const convertDocsMock = vi.fn();
@@ -85,5 +92,35 @@ describe('CLI', () => {
     
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Unknown service'));
     expect(process.exit).toHaveBeenCalledWith(1);
+  });
+
+  test('dry run option works correctly', async () => {
+    // Set process.argv with dry-run option
+    process.argv = ['node', 'cli.js', '--services', 'cursor', '--dry-run'];
+    
+    // Load CLI module
+    await import('../../src/cli');
+    
+    // Check if convertDocs was called with dryRun: true
+    expect(convertDocsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dryRun: true
+      })
+    );
+  });
+
+  test('shorthand option -d works as dry run', async () => {
+    // Set process.argv with shorthand dry-run option
+    process.argv = ['node', 'cli.js', '--services', 'cursor', '-d'];
+    
+    // Load CLI module
+    await import('../../src/cli');
+    
+    // Check if convertDocs was called with dryRun: true
+    expect(convertDocsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dryRun: true
+      })
+    );
   });
 }); 
