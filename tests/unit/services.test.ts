@@ -1,3 +1,4 @@
+import { describe, test, expect, beforeEach } from 'vitest';
 import { BaseService, ServiceManager } from '../../src/services';
 import { CursorService } from '../../src/services/cursor';
 import { ClineService } from '../../src/services/cline';

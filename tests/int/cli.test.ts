@@ -1,42 +1,46 @@
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Command } from 'commander';
 import { ServiceManager } from '../../src/services';
 
 // convertDocsをモック化
-const convertDocsMock = jest.fn();
-jest.mock('../../src/index', () => ({
+const convertDocsMock = vi.fn();
+vi.mock('../../src/index', () => ({
   convertDocs: convertDocsMock
 }));
 
 // ServiceManagerのmockedインスタンスを作成
-jest.mock('../../src/services', () => {
-  const mockGetService = jest.fn().mockImplementation((name: string) => {
+vi.mock('../../src/services', () => {
+  const mockGetService = vi.fn().mockImplementation((name: string) => {
     if (name === 'cursor') {
       return { name: 'cursor', getTargetDirectory: () => '.cursor/rules' };
     }
     return undefined;
   });
   
-  const mockGetServices = jest.fn().mockImplementation((names: string[]) => {
+  const mockGetServices = vi.fn().mockImplementation((names: string[]) => {
     return names
       .map((name: string) => mockGetService(name))
       .filter((service: any) => service !== undefined);
   });
   
-  const mockGetAllServiceNames = jest.fn().mockReturnValue(['cursor', 'cline']);
+  const mockGetAllServiceNames = vi.fn().mockReturnValue(['cursor', 'cline']);
   
   return {
-    ServiceManager: jest.fn().mockImplementation(() => ({
+    ServiceManager: vi.fn().mockImplementation(() => ({
       getService: mockGetService,
       getServices: mockGetServices,
       getAllServiceNames: mockGetAllServiceNames,
-      registerService: jest.fn()
+      registerService: vi.fn()
     })),
     BaseService: class {}
   };
 });
 
+// CLIモジュールをモック化
+vi.mock('../../src/cli');
+
 // process.exitをモック化
-const mockExit = jest.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
+const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
   return undefined as never;
 });
 
@@ -46,15 +50,9 @@ const originalConsoleError = console.error;
 
 describe('CLI', () => {
   beforeEach(() => {
-    // CLIモジュールをリセット
-    jest.resetModules();
-    
     // コンソール出力をモック化
-    console.log = jest.fn();
-    console.error = jest.fn();
-    
-    // process.argvをバックアップ
-    process.argv = ['node', 'cli.js'];
+    console.log = vi.fn();
+    console.error = vi.fn();
     
     // モックをクリア
     convertDocsMock.mockClear();
@@ -64,30 +62,26 @@ describe('CLI', () => {
     // 元に戻す
     console.log = originalConsoleLog;
     console.error = originalConsoleError;
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
   
-  test('CLIが正しく動作する', () => {
+  test('CLIが正しく動作する', async () => {
     // CLIを実行する前にprocess.argvをセット
     process.argv = ['node', 'cli.js', '--services', 'cursor'];
     
-    // CLIモジュールをインポート
-    jest.isolateModules(() => {
-      require('../../src/cli');
-    });
+    // CLIモジュールを読み込む（これによってCLIが実行される）
+    await import('../../src/cli');
     
     // convertDocsが呼ばれたことを確認
     expect(convertDocsMock).toHaveBeenCalled();
   });
   
-  test('存在しないサービスを指定するとエラーになる', () => {
+  test('存在しないサービスを指定するとエラーになる', async () => {
     // CLIを実行する前にprocess.argvをセット
     process.argv = ['node', 'cli.js', '--services', 'unknown'];
     
-    // CLIモジュールをインポート
-    jest.isolateModules(() => {
-      require('../../src/cli');
-    });
+    // CLIモジュールを読み込む
+    await import('../../src/cli');
     
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Unknown service'));
     expect(process.exit).toHaveBeenCalledWith(1);

@@ -1,7 +1,11 @@
-// グローバルにJestの型を追加する
-import 'jest';
+import { expect, afterEach, test } from 'vitest';
 
-// setup.tsは設定のみを行うため、ダミーのテストを追加
+// テストの自動クリーンアップ
+afterEach(() => {
+  // 各テスト後の後処理
+});
+
+// 設定のためのダミーテスト
 test('setup', () => {
   expect(true).toBe(true);
 }); 

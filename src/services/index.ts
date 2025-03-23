@@ -1,31 +1,7 @@
-// サービスのインターフェース定義
-export interface OutputService {
-  name: string;
-  getTargetDirectory(): string;
-  getTargetExtension(): string;
-  setTargetExtension(extension: string): void;
-}
-
-// 基本サービスクラス
-export abstract class BaseService implements OutputService {
-  constructor(
-    public readonly name: string,
-    protected readonly targetDirectory: string,
-    protected targetExtension: string = 'mdc'
-  ) {}
-
-  getTargetDirectory(): string {
-    return this.targetDirectory;
-  }
-
-  getTargetExtension(): string {
-    return this.targetExtension;
-  }
-
-  setTargetExtension(extension: string): void {
-    this.targetExtension = extension;
-  }
-}
+// 各サービスをインポート
+import { CursorService } from './cursor';
+import { ClineService } from './cline';
+import { OutputService, BaseService } from './base';
 
 // 全サービスをまとめて管理するクラス
 export class ServiceManager {
@@ -37,10 +13,7 @@ export class ServiceManager {
   }
 
   private registerDefaultServices(): void {
-    // 各サービスをインポートして登録
-    const { CursorService } = require('./cursor');
-    const { ClineService } = require('./cline');
-
+    // 各サービスを登録
     this.registerService(new CursorService());
     this.registerService(new ClineService());
   }
@@ -62,4 +35,8 @@ export class ServiceManager {
   getAllServiceNames(): string[] {
     return Array.from(this.services.keys());
   }
-} 
+}
+
+export { OutputService, BaseService } from './base';
+export { CursorService } from './cursor';
+export { ClineService } from './cline'; 

@@ -1,9 +1,10 @@
 import fs from 'fs';
 import path from 'path';
+import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { processDirectory } from '../../src/processor';
 import { BaseService } from '../../src/services';
 
-jest.mock('fs');
+vi.mock('fs');
 
 class MockService extends BaseService {
   constructor() {
@@ -13,16 +14,16 @@ class MockService extends BaseService {
 
 describe('processor', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('processDirectory が正しく機能する', () => {
     // モックデータをセットアップ
     const mockFiles = ['test.md', 'README.md', 'other.txt'];
-    (fs.readdirSync as jest.Mock).mockReturnValue(mockFiles);
-    (fs.existsSync as jest.Mock).mockReturnValue(true);
-    (fs.mkdirSync as jest.Mock).mockImplementation(() => {});
-    (fs.copyFileSync as jest.Mock).mockImplementation(() => {});
+    (fs.readdirSync as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockFiles);
+    (fs.existsSync as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    (fs.mkdirSync as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {});
+    (fs.copyFileSync as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {});
 
     const mockService = new MockService();
     const config = {
@@ -49,8 +50,8 @@ describe('processor', () => {
   test('除外ファイルが正しく処理される', () => {
     // モックデータをセットアップ
     const mockFiles = ['test1.md', 'test2.md', 'README.md'];
-    (fs.readdirSync as jest.Mock).mockReturnValue(mockFiles);
-    (fs.existsSync as jest.Mock).mockReturnValue(true);
+    (fs.readdirSync as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockFiles);
+    (fs.existsSync as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
     const mockService = new MockService();
     const config = {

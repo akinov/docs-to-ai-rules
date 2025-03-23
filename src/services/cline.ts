@@ -1,5 +1,5 @@
 import path from 'path';
-import { BaseService } from './index';
+import { BaseService } from './base';
 
 export class ClineService extends BaseService {
   constructor(targetExtension: string = 'mdc') {

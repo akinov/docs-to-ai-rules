@@ -1,10 +1,11 @@
 import fs from 'fs';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { convertDocs } from '../../src/index';
 import { BaseService } from '../../src/services';
 
-jest.mock('fs');
-jest.mock('../../src/processor', () => ({
-  processDirectory: jest.fn().mockReturnValue({
+vi.mock('fs');
+vi.mock('../../src/processor', () => ({
+  processDirectory: vi.fn().mockReturnValue({
     processedCount: 2,
     processedFiles: ['file1.md', 'file2.md'],
     services: ['mock']
@@ -24,25 +25,25 @@ describe('index', () => {
   }
 
   let mockService: MockService;
-  let exitSpy: jest.SpyInstance;
+  let exitSpy: any;
   
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // process.exitをモック化
-    exitSpy = jest.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       return undefined as never;
     });
     
     // コンソール出力をモック化
-    console.log = jest.fn();
-    console.error = jest.fn();
+    console.log = vi.fn();
+    console.error = vi.fn();
     
     mockService = new MockService();
     
     // fs.existsSyncのモック
-    (fs.existsSync as jest.Mock).mockReturnValue(true);
-    (fs.mkdirSync as jest.Mock).mockImplementation(() => {});
+    (fs.existsSync as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    (fs.mkdirSync as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {});
   });
   
   afterEach(() => {
@@ -69,7 +70,7 @@ describe('index', () => {
   });
   
   test('ソースディレクトリが存在しない場合はエラーになる', () => {
-    (fs.existsSync as jest.Mock).mockReturnValueOnce(false);
+    (fs.existsSync as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
     
     const config = {
       sourceDir: '/nonexistent',
