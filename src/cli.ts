@@ -4,14 +4,20 @@ import { Command } from 'commander';
 import path from 'path';
 import { convertDocs } from './index';
 import { ServiceManager } from './services';
+import { readFileSync } from 'fs';
 
 const program = new Command();
 const serviceManager = new ServiceManager();
 
+// package.jsonからバージョン情報を読み込む
+const packageJson = JSON.parse(
+  readFileSync(path.join(__dirname, '../package.json'), 'utf8')
+);
+
 program
   .name('docs-to-ai-rules')
   .description('Generate rule files for AI agents from Markdown documents')
-  .version('1.0.0');
+  .version(packageJson.version);
 
 program
   .option('-s, --source <directory>', 'Source directory', './doc/rules')
