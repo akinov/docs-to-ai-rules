@@ -1,52 +1,69 @@
 # docs-to-ai-rules
 
-A tool for generating rule files for AI agents from Markdown documents.
+AIエージェント用のルールファイルをMarkdownドキュメントから生成するツールです。
 
-## Installation
+## インストール
 
 ```bash
 npm install docs-to-ai-rules
 ```
 
-Or
+もしくは
 
 ```bash
 npm install -g docs-to-ai-rules
 ```
 
-## Usage
+## 使用方法
 
-### Command Line
+### コマンドライン
 
 ```bash
 docs-to-ai-rules [options]
 ```
 
-### Options
+### オプション
 
-| Option     | Short | Description | Default |
+| オプション     | 短縮形 | 説明 | デフォルト |
 |------------|-------|-------------|---------|
-| --source   | -s    | Source directory | `docs/rules` |
-| --target   | -t    | Target directory | `./.cursor/rules` |
-| --ext      | -e    | Extension of generated files | `mdc` |
-| --exclude  | -x    | Files to exclude (comma-separated) | `README.md` |
+| --source   | -s    | ソースディレクトリ | `doc/rules` |
+| --services |       | 出力先サービス（カンマ区切り） | `cursor` |
+| --ext      | -e    | 生成されるファイルの拡張子 | `mdc` |
+| --exclude  | -x    | 除外するファイル（カンマ区切り） | `README.md` |
 
-### Examples
+### 対応しているサービス
+
+- `cursor` - [Cursor](https://cursor.sh/)のルールファイル（`.cursor/rules`に出力）
+- `cline` - [Cline](https://cline.so/)のルールファイル（`.cline/rules`に出力）
+
+### 使用例
 
 ```bash
-# Run with default settings
+# デフォルト設定で実行（Cursorのみに出力）
 docs-to-ai-rules
 
-# Specify custom source and target directories
-docs-to-ai-rules --source my-docs/rules --target output/rules
+# カスタムソースディレクトリを指定
+docs-to-ai-rules --source my-docs/rules
 
-# Change the extension
+# 複数のサービスに出力
+docs-to-ai-rules --services cursor,cline
+
+# ファイル拡張子を変更
 docs-to-ai-rules --ext txt
 
-# Exclude multiple files
+# 複数のファイルを除外
 docs-to-ai-rules --exclude "README.md,CHANGELOG.md"
 ```
 
-## How it works
+## 仕組み
 
-The tool processes Markdown files in the `docs/rules` directory (or the specified source directory) and generates rule files for AI agents. The generated files are saved in the `./.cursor/rules` directory (or the specified target directory). 
+このツールは、`doc/rules`ディレクトリ（または指定されたソースディレクトリ）内のMarkdownファイルを処理し、AIエージェント用のルールファイルを生成します。生成されたファイルは、指定されたサービスのディレクトリに保存されます。
+
+- Cursorの場合： `./.cursor/rules`
+- Clineの場合： `./.cline/rules`
+
+複数のサービスを指定すると、各サービスのディレクトリに同じ内容のファイルが生成されます。
+
+## カスタムサービスの追加
+
+新しいサービスを追加するには、`src/services`ディレクトリに新しいサービスクラスを作成し、`ServiceManager`に登録してください。

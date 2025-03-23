@@ -17,6 +17,7 @@ build/
 
 # Generated files
 .cursor/
+.cline/
 custom-output/
 
 # IDE / Editors
