@@ -1,6 +1,6 @@
 {
   "name": "docs-to-ai-rules",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A tool for generating rules files for AI agents from Markdown documents",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
