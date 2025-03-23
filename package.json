@@ -1,0 +1,27 @@
+{
+  "name": "docs-to-ai-rules",
+  "version": "1.0.0",
+  "description": "Convert Markdown docs to AI Rules docs.",
+  "keywords": [
+    "ai",
+    "rules",
+    "markdown",
+    "mdc",
+    "cursor"
+  ],
+  "homepage": "https://github.com/akinov/docs-to-ai-rules#readme",
+  "bugs": {
+    "url": "https://github.com/akinov/docs-to-ai-rules/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akinov/docs-to-ai-rules.git"
+  },
+  "license": "ISC",
+  "author": "kuronekopunk",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
