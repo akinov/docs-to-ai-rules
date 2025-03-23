@@ -142,4 +142,92 @@ describe('processor', () => {
     expect(result.updatedCount).toBe(1);
     expect(result.updatedFiles).toEqual(['updated.md']);
   });
+
+  test('sync mode deletes outdated files', () => {
+    // Setup mock data
+    const mockSourceFiles = ['current.md'];
+    const mockTargetFiles = ['current.test', 'outdated.test', 'another.txt'];
+    
+    (fs.readdirSync as unknown as ReturnType<typeof vi.fn>).mockImplementation((dir) => {
+      if (dir === '/tmp/source') {
+        return mockSourceFiles;
+      } else if (dir === '/tmp/mock') {
+        return mockTargetFiles;
+      }
+      return [];
+    });
+    
+    (fs.existsSync as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    (fs.unlinkSync as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {});
+    (fs.statSync as unknown as ReturnType<typeof vi.fn>).mockImplementation((path) => ({
+      mtimeMs: path.includes('source') ? 100 : 100 // Files have same time
+    }));
+
+    const mockService = new MockService();
+    const config = {
+      sourceDir: '/tmp/source',
+      services: [mockService],
+      sync: true
+    };
+
+    // Execute function
+    const result = processDirectory(config);
+
+    // Assertions
+    expect(result.processedCount).toBe(1);
+    expect(result.processedFiles).toEqual(['current.md']);
+    expect(result.deletedCount).toBe(1);
+    expect(result.deletedFiles).toEqual(['outdated.test']);
+    
+    // Check if outdated file was deleted
+    expect(fs.unlinkSync).toHaveBeenCalledWith(
+      path.join('/tmp/mock', 'outdated.test')
+    );
+    
+    // Check that non-target extension files were not deleted
+    expect(fs.unlinkSync).not.toHaveBeenCalledWith(
+      path.join('/tmp/mock', 'another.txt')
+    );
+  });
+
+  test('sync mode does not delete files in dry run mode', () => {
+    // Setup mock data
+    const mockSourceFiles = ['current.md'];
+    const mockTargetFiles = ['current.test', 'outdated.test'];
+    
+    (fs.readdirSync as unknown as ReturnType<typeof vi.fn>).mockImplementation((dir) => {
+      if (dir === '/tmp/source') {
+        return mockSourceFiles;
+      } else if (dir === '/tmp/mock') {
+        return mockTargetFiles;
+      }
+      return [];
+    });
+    
+    (fs.existsSync as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    (fs.unlinkSync as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {});
+    (fs.statSync as unknown as ReturnType<typeof vi.fn>).mockImplementation((path) => ({
+      mtimeMs: path.includes('source') ? 100 : 100 // Files have same time
+    }));
+
+    const mockService = new MockService();
+    const config = {
+      sourceDir: '/tmp/source',
+      services: [mockService],
+      sync: true,
+      dryRun: true
+    };
+
+    // Execute function
+    const result = processDirectory(config);
+
+    // Assertions
+    expect(result.processedCount).toBe(1);
+    expect(result.processedFiles).toEqual(['current.md']);
+    expect(result.deletedCount).toBe(0);
+    expect(result.deletedFiles).toEqual([]);
+    
+    // Files should not be deleted in dry run mode
+    expect(fs.unlinkSync).not.toHaveBeenCalled();
+  });
 }); 

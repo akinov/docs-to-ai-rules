@@ -9,6 +9,8 @@ export interface ProcessResult {
   services: string[];
   updatedCount: number;
   updatedFiles: string[];
+  deletedCount: number;
+  deletedFiles: string[];
 }
 
 /**
@@ -29,12 +31,24 @@ function needsUpdate(sourcePath: string, targetPath: string): boolean {
  * Process Markdown files in a directory
  */
 export function processDirectory(config: Config): ProcessResult {
-  const { sourceDir, services, excludeFiles = [], dryRun = false } = config;
+  const { sourceDir, services, excludeFiles = [], dryRun = false, sync = false } = config;
   const files = fs.readdirSync(sourceDir);
   let processedCount = 0;
   let updatedCount = 0;
+  let deletedCount = 0;
   const processedFiles: string[] = [];
   const updatedFiles: string[] = [];
+  const deletedFiles: string[] = [];
+  
+  // Build map of source files for sync mode
+  const sourceFiles = new Set<string>();
+  if (sync) {
+    for (const file of files) {
+      if (file.endsWith('.md') && !excludeFiles.includes(file)) {
+        sourceFiles.add(file.replace('.md', ''));
+      }
+    }
+  }
   
   for (const file of files) {
     if (file.endsWith('.md') && !excludeFiles.includes(file)) {
@@ -75,11 +89,45 @@ export function processDirectory(config: Config): ProcessResult {
     }
   }
   
+  // In sync mode, delete files in target directories that don't exist in source
+  if (sync && !dryRun) {
+    for (const service of services) {
+      const targetDir = service.getTargetDirectory();
+      const targetExt = service.getTargetExtension();
+      
+      if (fs.existsSync(targetDir)) {
+        const targetFiles = fs.readdirSync(targetDir);
+        
+        for (const targetFile of targetFiles) {
+          // Only check files with the right extension
+          if (targetFile.endsWith(`.${targetExt}`)) {
+            const baseName = targetFile.substring(0, targetFile.length - targetExt.length - 1);
+            
+            // If base name doesn't exist in source files, delete it
+            if (!sourceFiles.has(baseName)) {
+              const targetPath = path.join(targetDir, targetFile);
+              try {
+                fs.unlinkSync(targetPath);
+                console.log(`[${service.name}] Deleted outdated file ${targetFile}`);
+                deletedCount++;
+                deletedFiles.push(targetFile);
+              } catch (err) {
+                console.error(`Error deleting ${targetPath}`, err);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
   return {
     processedCount,
     processedFiles,
     services: services.map(s => s.name),
     updatedCount,
-    updatedFiles
+    updatedFiles,
+    deletedCount,
+    deletedFiles
   };
 } 

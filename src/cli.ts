@@ -27,7 +27,8 @@ program
     'cursor'
   )
   .option('-x, --exclude <files>', 'Files to exclude (comma-separated)', 'README.md')
-  .option('-d, --dry-run', 'Check for updates without modifying files');
+  .option('-d, --dry-run', 'Check for updates without modifying files')
+  .option('--sync', 'Format output directory and sync files completely');
 
 program.parse();
 
@@ -37,6 +38,7 @@ const options = program.opts();
 const sourceDir = path.resolve(process.cwd(), options.source);
 const excludeFiles = options.exclude.split(',').map((file: string) => file.trim());
 const dryRun = !!options.dryRun;
+const sync = !!options.sync;
 
 // Get list of services
 const serviceNames = options.services.split(',').map((s: string) => s.trim().toLowerCase());
@@ -63,5 +65,6 @@ convertDocs({
   sourceDir,
   services,
   excludeFiles,
-  dryRun
+  dryRun,
+  sync
 }); 

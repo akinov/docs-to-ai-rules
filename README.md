@@ -30,6 +30,7 @@ docs-to-ai-rules [options]
 | --services |       | Output services (comma-separated) | `cursor` |
 | --exclude  | -x    | Files to exclude (comma-separated) | `README.md` |
 | --dry-run  | -d    | Check for updates without modifying files | `false` |
+| --sync     |       | Format output directories and sync files completely | `false` |
 
 ### Supported Services
 
@@ -53,6 +54,9 @@ docs-to-ai-rules --exclude "README.md,CHANGELOG.md"
 
 # Check which files need updates without modifying them
 docs-to-ai-rules --dry-run
+
+# Format and completely sync source with target directories
+docs-to-ai-rules --sync
 ```
 
 ## How It Works
@@ -72,6 +76,28 @@ In dry run mode:
 - No directories will be created
 - No files will be copied or modified
 - The tool will display which files need updates
+
+### Sync Mode
+
+When the `--sync` option is used, the tool will:
+
+1. Clear the output directories (format) before copying files
+2. Delete files in the output directories that don't exist in the source directory
+3. Ensure complete synchronization between source and destination
+
+This is useful when you want to make sure your output directories exactly match the source directory, without any stale or outdated files.
+
+In sync mode:
+- Output directories are formatted (all contents removed)
+- Files are copied from source to destination
+- Files in the destination that don't exist in the source are deleted
+- The tool will display a summary of added, updated, and deleted files
+
+Sync mode can be combined with dry run mode to see what changes would be made without actually performing them:
+
+```bash
+docs-to-ai-rules --sync --dry-run
+```
 
 ## Adding Custom Services
 

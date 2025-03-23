@@ -11,7 +11,9 @@ vi.mock('../../src/processor', () => ({
     processedFiles: ['file1.md', 'file2.md'],
     services: ['mock'],
     updatedCount: 1,
-    updatedFiles: ['file1.md']
+    updatedFiles: ['file1.md'],
+    deletedCount: 0,
+    deletedFiles: []
   })
 }));
 
@@ -124,5 +126,64 @@ describe('index', () => {
     
     // Check dry run logs are output
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[Dry Run] No files need updates'));
+  });
+
+  test('sync mode clears target directories', () => {
+    // Mock directory contents
+    const mockDirContents = ['file1.md', 'file2.md', 'subdir'];
+    (fs.readdirSync as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockDirContents);
+    (fs.lstatSync as unknown as ReturnType<typeof vi.fn>).mockImplementation((path) => ({
+      isDirectory: () => path.includes('subdir')
+    }));
+    (fs.rmSync as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {});
+    (fs.unlinkSync as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {});
+    
+    // Mock processDirectory to return deleted file info
+    (processDirectory as unknown as MockInstance).mockReturnValueOnce({
+      processedCount: 2,
+      processedFiles: ['file1.md', 'file2.md'],
+      services: ['mock'],
+      updatedCount: 2,
+      updatedFiles: ['file1.md', 'file2.md'],
+      deletedCount: 3,
+      deletedFiles: ['old1.md', 'old2.md', 'old3.md']
+    });
+
+    const config = {
+      sourceDir: '/tmp/source',
+      services: [mockService],
+      sync: true
+    };
+    
+    convertDocs(config);
+    
+    // Check if files and directories were removed
+    expect(fs.unlinkSync).toHaveBeenCalledTimes(2); // for the non-directory items
+    expect(fs.rmSync).toHaveBeenCalledWith(
+      expect.stringContaining('subdir'),
+      expect.objectContaining({ recursive: true })
+    );
+    
+    // Check for sync mode log
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Formatting directory'));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Sync mode: Deleted 3 outdated files'));
+  });
+
+  test('sync mode with dry run does not clear directories', () => {
+    const config = {
+      sourceDir: '/tmp/source',
+      services: [mockService],
+      sync: true,
+      dryRun: true
+    };
+    
+    convertDocs(config);
+    
+    // Files should not be deleted
+    expect(fs.unlinkSync).not.toHaveBeenCalled();
+    expect(fs.rmSync).not.toHaveBeenCalled();
+    
+    // Check for dry run log
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[Dry Run] Would format directory'));
   });
 }); 

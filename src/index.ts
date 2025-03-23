@@ -8,10 +8,11 @@ export interface Config {
   services: OutputService[];
   excludeFiles?: string[];
   dryRun?: boolean;
+  sync?: boolean;
 }
 
 export function convertDocs(config: Config): void {
-  const { sourceDir, services, excludeFiles = ['README.md'], dryRun = false } = config;
+  const { sourceDir, services, excludeFiles = ['README.md'], dryRun = false, sync = false } = config;
 
   // Check if source directory exists
   if (!fs.existsSync(sourceDir)) {
@@ -30,16 +31,37 @@ export function convertDocs(config: Config): void {
         } else {
           console.log(`[Dry Run] Would create directory ${targetDir}`);
         }
+      } else if (sync && !dryRun) {
+        // In sync mode, clear out target directory first
+        console.log(`Formatting directory ${targetDir}`);
+        // We don't delete the directory itself to avoid permissions issues
+        // Just clear its contents for each service
+        const dirContents = fs.readdirSync(targetDir);
+        for (const item of dirContents) {
+          const itemPath = path.join(targetDir, item);
+          try {
+            if (fs.lstatSync(itemPath).isDirectory()) {
+              fs.rmSync(itemPath, { recursive: true, force: true });
+            } else {
+              fs.unlinkSync(itemPath);
+            }
+            console.log(`Removed ${itemPath}`);
+          } catch (err) {
+            console.error(`Error removing ${itemPath}`, err);
+          }
+        }
+      } else if (sync && dryRun) {
+        console.log(`[Dry Run] Would format directory ${targetDir}`);
       }
     } catch (err) {
-      console.error(`Error: Could not create directory ${targetDir}`, err);
+      console.error(`Error: Could not process directory ${targetDir}`, err);
       process.exit(1);
     }
   }
 
   // Execute conversion
   try {
-    const result = processDirectory(config);
+    const result = processDirectory({...config, sync});
     
     if (dryRun) {
       if (result.updatedCount > 0) {
@@ -52,6 +74,9 @@ export function convertDocs(config: Config): void {
       }
     } else {
       console.log(`Processing complete: Converted ${result.processedCount} files to ${result.services.length} services`);
+      if (sync && result.deletedCount && result.deletedCount > 0) {
+        console.log(`Sync mode: Deleted ${result.deletedCount} outdated files`);
+      }
     }
   } catch (err) {
     console.error('Error during file conversion:', err);
