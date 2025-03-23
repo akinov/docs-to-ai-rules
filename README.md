@@ -28,13 +28,12 @@ docs-to-ai-rules [options]
 |------------|-------|-------------|---------|
 | --source   | -s    | Source directory | `doc/rules` |
 | --services |       | Output services (comma-separated) | `cursor` |
-| --ext      | -e    | Generated file extension | `mdc` |
 | --exclude  | -x    | Files to exclude (comma-separated) | `README.md` |
 
 ### Supported Services
 
-- `cursor` - Rule files for [Cursor](https://cursor.sh/) (output to `.cursor/rules`)
-- `cline` - Rule files for [Cline](https://github.com/cline/cline) (output to `.cline/rules`)
+- `cursor` - Rule files for [Cursor](https://cursor.sh/) (output to `.cursor/rules` with `.mdc` extension)
+- `cline` - Rule files for [Cline](https://github.com/cline/cline) (output to `.cline/rules` with `.md` extension)
 
 ### Examples
 
@@ -48,9 +47,6 @@ docs-to-ai-rules --source my-docs/rules
 # Output to multiple services
 docs-to-ai-rules --services cursor,cline
 
-# Change file extension
-docs-to-ai-rules --ext txt
-
 # Exclude multiple files
 docs-to-ai-rules --exclude "README.md,CHANGELOG.md"
 ```
@@ -59,10 +55,10 @@ docs-to-ai-rules --exclude "README.md,CHANGELOG.md"
 
 This tool processes Markdown files in the `doc/rules` directory (or the specified source directory) and generates rule files for AI agents. The generated files are saved in the directories of the specified services.
 
-- For Cursor: `./.cursor/rules`
-- For Cline: `./.cline/rules`
+- For Cursor: `./.cursor/rules` with `.mdc` extension
+- For Cline: `./.cline/rules` with `.md` extension
 
-If multiple services are specified, files with the same content will be generated in each service's directory.
+If multiple services are specified, files will be generated in each service's directory with the appropriate file extension for that service.
 
 ## Adding Custom Services
 

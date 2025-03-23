@@ -6,7 +6,6 @@ import { OutputService } from './services';
 export interface Config {
   sourceDir: string;
   services: OutputService[];
-  targetExt?: string;
   excludeFiles?: string[];
 }
 

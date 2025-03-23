@@ -26,7 +26,6 @@ program
     'Target services (comma-separated)', 
     'cursor'
   )
-  .option('-e, --ext <extension>', 'Extension of generated files', 'mdc')
   .option('-x, --exclude <files>', 'Files to exclude (comma-separated)', 'README.md');
 
 program.parse();
@@ -55,16 +54,6 @@ if (services.length === 0) {
   console.error('Error: No valid services specified');
   console.log(`Available services: ${availableServices.join(', ')}`);
   process.exit(1);
-}
-
-// Set custom extension
-if (options.ext && options.ext !== 'mdc') {
-  services.forEach(service => {
-    // Assuming the service class has a setTargetExtension method
-    if (typeof service.setTargetExtension === 'function') {
-      service.setTargetExtension(options.ext);
-    }
-  });
 }
 
 // Execute conversion
