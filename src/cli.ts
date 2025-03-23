@@ -20,7 +20,7 @@ program
   .version(packageJson.version);
 
 program
-  .option('-s, --source <directory>', 'Source directory', './doc/rules')
+  .option('-s, --source <directory>', 'Source directory', './docs/rules')
   .option(
     '--services <services>', 
     'Target services (comma-separated)', 
