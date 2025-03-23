@@ -36,9 +36,6 @@ vi.mock('../../src/services', () => {
   };
 });
 
-// CLIモジュールをモック化
-vi.mock('../../src/cli');
-
 // process.exitをモック化
 const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
   return undefined as never;
@@ -56,6 +53,9 @@ describe('CLI', () => {
     
     // モックをクリア
     convertDocsMock.mockClear();
+
+    // importCacheをクリア
+    vi.resetModules();
   });
   
   afterEach(() => {
