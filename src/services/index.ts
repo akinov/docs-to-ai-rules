@@ -1,7 +1,8 @@
 // Import each service
 import { CursorService } from './cursor';
 import { ClineService } from './cline';
-import { OutputService, BaseService } from './base';
+import { BaseService } from './base';
+import type { OutputService } from './base';
 
 // Class to manage all services
 export class ServiceManager {
@@ -37,6 +38,6 @@ export class ServiceManager {
   }
 }
 
-export { OutputService, BaseService } from './base';
+export { BaseService, OutputService } from './base';
 export { CursorService } from './cursor';
 export { ClineService } from './cline'; 

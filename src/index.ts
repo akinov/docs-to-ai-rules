@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { processDirectory } from './processor';
-import { OutputService } from './services';
+import type { OutputService } from './services';
 
 export interface Config {
   sourceDir: string;
@@ -12,7 +12,7 @@ export interface Config {
 }
 
 export function convertDocs(config: Config): void {
-  const { sourceDir, services, excludeFiles = ['README.md'], dryRun = false, sync = false } = config;
+  const { sourceDir, services, dryRun = false, sync = false } = config;
 
   // Check if source directory exists
   if (!fs.existsSync(sourceDir)) {

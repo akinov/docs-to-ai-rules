@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { Config } from './index';
-import { OutputService } from './services';
+import type { Config } from './index';
+import type { OutputService } from './services';
 
 export interface ProcessResult {
   processedCount: number;

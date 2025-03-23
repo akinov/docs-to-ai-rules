@@ -1,5 +1,6 @@
 import fs from 'fs';
-import { describe, test, expect, beforeEach, afterEach, vi, MockInstance } from 'vitest';
+import type { MockInstance } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { convertDocs } from '../../src/index';
 import { BaseService } from '../../src/services';
 import { processDirectory } from '../../src/processor';
