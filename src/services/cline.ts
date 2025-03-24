@@ -5,8 +5,8 @@ export class ClineService extends BaseService {
   constructor(targetExtension: string = 'md') {
     super(
       'cline',
-      path.join(process.cwd(), '.cline', 'rules'),
+      path.join(process.cwd(), '.clinerules'),
       targetExtension
     );
   }
-} 
+}

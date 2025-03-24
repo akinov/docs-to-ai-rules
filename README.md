@@ -35,7 +35,7 @@ docs-to-ai-rules [options]
 ### Supported Services
 
 - `cursor` - Rule files for [Cursor](https://cursor.sh/) (output to `.cursor/rules` with `.mdc` extension)
-- `cline` - Rule files for [Cline](https://github.com/cline/cline) (output to `.cline/rules` with `.md` extension)
+- `cline` - Rule files for [Cline](https://github.com/cline/cline) (output to `.clinerules` with `.md` extension)
 
 ### Examples
 

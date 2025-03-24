@@ -13,7 +13,7 @@ coverage/
 .gitignore
 .github/
 .cursor/
-.cline/
+.clinerules/
 custom-output/
 
 # IDEs and editors
@@ -25,7 +25,7 @@ custom-output/
 .AppleDouble
 .LSOverride
 
-# Environment 
+# Environment
 .env
 .env.local
 .env.development.local
@@ -43,4 +43,4 @@ docs/
 
 # Temporary files
 *.log
-*.tmp 
+*.tmp

@@ -4,6 +4,9 @@ npm-debug.log
 yarn-debug.log
 yarn-error.log
 
+# Local docs
+docs/rules/local*
+
 # Build
 dist/
 build/
@@ -16,8 +19,10 @@ build/
 .env.production.local
 
 # Generated files
-.cursor/
-.cline/
+.cursor/test*
+.cursor/local*
+.clinerules/test*
+.clinerules/local*
 custom-output/
 
 # IDE / Editors
@@ -30,4 +35,4 @@ custom-output/
 .LSOverride
 
 # Test
-coverage/ 
+coverage/
