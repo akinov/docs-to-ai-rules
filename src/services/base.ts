@@ -1,5 +1,4 @@
 // Interface definition for services
-import path from 'path';
 import os from 'os';
 
 // Function to expand tilde to home directory
