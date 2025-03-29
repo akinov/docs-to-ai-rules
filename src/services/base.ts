@@ -1,4 +1,14 @@
 // Interface definition for services
+import os from 'os';
+
+// Function to expand tilde to home directory
+export const expandTilde = (filePath: string): string => {
+  if (filePath.startsWith('~/') || filePath === '~') {
+    return filePath.replace(/^~(?=$|\/|\\)/, os.homedir());
+  }
+  return filePath;
+};
+
 export interface OutputService {
   name: string;
   getTargetDirectory(): string;

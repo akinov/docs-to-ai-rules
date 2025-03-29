@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import path from 'path';
 import { convertDocs } from './index';
 import { ServiceManager } from './services';
+import { expandTilde } from './services/base';
 import { readFileSync } from 'fs';
 
 const program = new Command();
@@ -34,8 +35,8 @@ program.parse();
 
 const options = program.opts();
 
-// Convert to absolute path
-const sourceDir = path.resolve(process.cwd(), options.source);
+// Convert to absolute path with tilde expansion
+const sourceDir = path.resolve(process.cwd(), expandTilde(options.source));
 const excludeFiles = options.exclude.split(',').map((file: string) => file.trim());
 const dryRun = !!options.dryRun;
 const sync = !!options.sync;
