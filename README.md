@@ -32,6 +32,8 @@ docs-to-ai-rules [options]
 | --dry-run  | -d    | Check for updates without modifying files | `false` |
 | --sync     |       | Format output directories and sync files completely | `false` |
 
+> **Note:** Source directory can also be specified using tilde (`~`) to reference your home directory, e.g., `~/Documents/rules`
+
 ### Supported Services
 
 - `cursor` - Rule files for [Cursor](https://cursor.sh/) (output to `.cursor/rules` with `.mdc` extension)
@@ -45,6 +47,9 @@ docs-to-ai-rules
 
 # Specify a custom source directory
 docs-to-ai-rules --source my-docs/rules
+
+# Specify a source directory in the home directory
+docs-to-ai-rules --source ~/my-docs/rules
 
 # Output to multiple services
 docs-to-ai-rules --services cursor,cline

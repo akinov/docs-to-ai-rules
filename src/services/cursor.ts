@@ -1,11 +1,11 @@
 import path from 'path';
-import { BaseService } from './base';
+import { BaseService, expandTilde } from './base';
 
 export class CursorService extends BaseService {
   constructor(targetExtension: string = 'mdc') {
     super(
       'cursor',
-      path.join(process.cwd(), '.cursor', 'rules'),
+      path.join(process.cwd(), expandTilde('.cursor/rules')),
       targetExtension
     );
   }

@@ -1,7 +1,8 @@
 import { describe, test, expect, beforeEach } from 'vitest';
-import { BaseService, ServiceManager } from '../../src/services';
+import { BaseService, ServiceManager, expandTilde } from '../../src/services';
 import { CursorService } from '../../src/services/cursor';
 import { ClineService } from '../../src/services/cline';
+import os from 'os';
 
 class TestService extends BaseService {
   constructor() {
@@ -19,6 +20,26 @@ describe('BaseService', () => {
     
     service.setTargetExtension('new');
     expect(service.getTargetExtension()).toBe('new');
+  });
+});
+
+describe('expandTilde', () => {
+  test('expands ~ to home directory', () => {
+    const homeDir = os.homedir();
+    expect(expandTilde('~')).toBe(homeDir);
+    expect(expandTilde('~/docs')).toBe(`${homeDir}/docs`);
+    expect(expandTilde('~/docs/rules')).toBe(`${homeDir}/docs/rules`);
+  });
+
+  test('leaves non-tilde paths unchanged', () => {
+    expect(expandTilde('/tmp/test')).toBe('/tmp/test');
+    expect(expandTilde('./relative/path')).toBe('./relative/path');
+    expect(expandTilde('relative/path')).toBe('relative/path');
+  });
+
+  test('only replaces tilde at the beginning', () => {
+    expect(expandTilde('/tmp/~/test')).toBe('/tmp/~/test');
+    expect(expandTilde('path/~/file')).toBe('path/~/file');
   });
 });
 
