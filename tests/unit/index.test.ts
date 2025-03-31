@@ -1,244 +1,174 @@
-import fs from 'fs';
-import type { MockInstance } from 'vitest';
-import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
-import { convertDocs } from '../../src/index';
-import type { Config } from '../../src/interfaces/configManager';
-import { BaseService } from '../../src/services';
-import { processDirectory, type ProcessResult } from '../../src/processor';
+import path from 'path';
+import { describe, test, expect, beforeEach, afterEach, vi, type MockInstance, type Mocked } from 'vitest';
+import { convertDocs, type Config } from '../../src/index';
+import type { BaseService } from '../../src/services/base';
 import { NodeFileSystemManager } from '../../src/utils/fileSystemManager';
+import { DirectoryNotFoundError } from '../../src/errors';
 import type { FileStats } from '../../src/interfaces/fileSystemManager';
+import { processDirectory, type ProcessResult } from '../processor';
 
-// Keep fs mock for other potential direct uses or deep dependencies
-vi.mock('fs');
+// Define the mock function *before* vi.mock
+const processDirectoryMock = vi.fn();
 
-// Mock the FileSystemManager module - Vitest replaces the export with a mock constructor
-vi.mock('../../src/utils/fileSystemManager');
+vi.mock('../processor', () => ({
+  processDirectory: processDirectoryMock,
+}));
 
-// Mock the processor module
-vi.mock('../../src/processor');
+// Mock FileSystemManager using vi.hoisted for proper mocking
+vi.mock('../utils/fileSystemManager'); // NodeFileSystemManager をモック
 
 // Mock console output
-const originalConsoleLog = console.log;
-const originalConsoleError = console.error;
+vi.mock('console', () => ({
+  log: vi.fn(),
+  error: vi.fn(),
+}));
 
-describe('index', () => {
-  // Create mock service
-  class MockService extends BaseService {
-    constructor() {
-      super('mock', '/tmp/mock');
-    }
+// Define MockService
+class MockService extends BaseService {
+  targetExtension = '.test';
+  targetDir = '/tmp/mock';
+  async convertFile(sourcePath: string, targetPath: string): Promise<void> {
+    // No-op for testing convertDocs focus
   }
+}
 
+describe('convertDocs', () => {
   let mockService: MockService;
-  // Correct type for process.exit spy using function signature
-  let exitSpy: MockInstance<(code?: number | undefined) => never>; 
-  // Type the instance and then cast it to Mocked<T> after assignment
-  let mockFileSystemManagerInstance: vi.Mocked<NodeFileSystemManager>;
+  // NodeFileSystemManager の型付けされたモックインスタンス
+  let mockFSM: Mocked<NodeFileSystemManager>;
+  let mockConsoleLog: MockInstance;
+  let mockConsoleError: MockInstance;
 
-  // Get the properly typed mocked function for processDirectory
-  const mockedProcessDirectory = vi.mocked(processDirectory);
+  beforeEach(async () => {
+    // NodeFileSystemManager のモックインスタンスを取得
+    // new する必要があるので、コンストラクタもモックする
+    const MockFSM = vi.mocked(NodeFileSystemManager);
+    MockFSM.mockClear(); // コンストラクタの呼び出し履歴もクリア
+    // モックされたコンストラクタからインスタンスを作成 (実際の実装は使われない)
+    // 各メソッドはインスタンスごとにモックする必要がある
+    mockFSM = new MockFSM() as Mocked<NodeFileSystemManager>;
 
-  beforeEach(() => {
-    vi.clearAllMocks(); // Clears fs, processor mocks too
-    
-    // Reset the mocked constructor calls if needed (usually vi.clearAllMocks is sufficient)
-    vi.mocked(NodeFileSystemManager).mockClear(); 
-    mockedProcessDirectory.mockClear();
+    // モックメソッドのデフォルト実装を設定 (Promise を返すように)
+    mockFSM.ensureDirectoryExists = vi.fn().mockResolvedValue(undefined);
+    mockFSM.removeDirectoryIfExists = vi.fn().mockResolvedValue(undefined);
+    mockFSM.fileExists = vi.fn().mockResolvedValue(true);
+    mockFSM.readDir = vi.fn().mockResolvedValue([]);
+    mockFSM.copyFile = vi.fn().mockResolvedValue(undefined);
+    mockFSM.needsUpdate = vi.fn().mockResolvedValue(false);
+    mockFSM.deleteFile = vi.fn().mockResolvedValue(undefined);
+    mockFSM.findFiles = vi.fn().mockResolvedValue([]); // findFiles も追加
 
-    // Create an instance using the mocked constructor
-    const instance = new NodeFileSystemManager();
-    // Cast the instance to tell TypeScript its methods are mocks
-    mockFileSystemManagerInstance = instance as vi.Mocked<NodeFileSystemManager>;
-
-    // --- Set default behaviors on the mocked methods ---
-    mockFileSystemManagerInstance.fileExists.mockReturnValue(true);
-    mockFileSystemManagerInstance.ensureDirectoryExists.mockClear(); // Use mockClear for spies
-    mockFileSystemManagerInstance.removeDirectoryIfExists.mockClear();
-    mockFileSystemManagerInstance.copyFile.mockClear();
-    mockFileSystemManagerInstance.deleteFile.mockClear();
-    mockFileSystemManagerInstance.needsUpdate.mockReturnValue(false);
-    mockFileSystemManagerInstance.getFileStats.mockReturnValue({ mtime: new Date(0), size: 0 });
-    mockFileSystemManagerInstance.readFile.mockReturnValue('');
-    mockFileSystemManagerInstance.writeFile.mockClear();
-    mockFileSystemManagerInstance.readDir.mockReturnValue([]);
-    // --- End of default behavior assignments ---
-
-    // Set default mock result for processDirectory
+    // processDirectory モックのリセットとデフォルトの戻り値設定
+    processDirectoryMock.mockClear();
     const defaultProcessResult: ProcessResult = {
-      processedCount: 2,
-      processedFiles: ['file1.md', 'file2.md'],
-      services: ['mock'],
-      updatedCount: 1,
-      updatedFiles: ['file1.md'],
-      deletedCount: 0,
-      deletedFiles: []
-    };
-    mockedProcessDirectory.mockReturnValue(defaultProcessResult);
-
-    // Mock process.exit
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation((code): never => {
-      throw new Error(`process.exit called with code ${code ?? 'unknown'}`);
-    });
-
-    // Mock console output
-    console.log = vi.fn();
-    console.error = vi.fn();
-
-    mockService = new MockService();
-  });
-
-  afterEach(() => {
-    // Restore originals
-    console.log = originalConsoleLog;
-    console.error = originalConsoleError;
-    exitSpy.mockRestore();
-  });
-
-  test('convertDocs executes correctly', () => {
-    const config: Config = {
-      sourceDir: '/tmp/source',
-      services: [mockService],
-      excludeFiles: ['README.md']
-    };
-
-    convertDocs(config);
-
-    // Check FileSystemManager methods were called
-    expect(mockFileSystemManagerInstance.fileExists).toHaveBeenCalledWith('/tmp/source');
-    expect(mockFileSystemManagerInstance.fileExists).toHaveBeenCalledWith('/tmp/mock');
-    expect(mockFileSystemManagerInstance.ensureDirectoryExists).not.toHaveBeenCalled();
-
-    // Check processDirectory was called
-    expect(mockedProcessDirectory).toHaveBeenCalledWith(expect.objectContaining({ sourceDir: '/tmp/source' }));
-
-    // Check completion log
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Processing complete'));
-  });
-
-  test('creates target directory if it does not exist', () => {
-    // Setup: only source directory exists
-    // Access mock implementation directly on the mocked instance method
-    mockFileSystemManagerInstance.fileExists.mockImplementation((path) => path === '/tmp/source');
-
-    const config: Config = {
-      sourceDir: '/tmp/source',
-      services: [mockService],
-    };
-
-    convertDocs(config);
-
-    expect(mockFileSystemManagerInstance.fileExists).toHaveBeenCalledWith('/tmp/mock');
-    expect(mockFileSystemManagerInstance.ensureDirectoryExists).toHaveBeenCalledWith('/tmp/mock');
-  });
-
-  test('error occurs when source directory does not exist', () => {
-    // Setup: source directory does not exist
-    mockFileSystemManagerInstance.fileExists.mockImplementation((path) => path !== '/nonexistent');
-
-    const config: Config = {
-      sourceDir: '/nonexistent',
-      services: [mockService]
-    };
-
-    expect(() => convertDocs(config)).toThrow('process.exit called with code 1');
-    expect(mockFileSystemManagerInstance.fileExists).toHaveBeenCalledWith('/nonexistent');
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('does not exist'));
-    expect(exitSpy).toHaveBeenCalledWith(1);
-  });
-
-  test('dry run mode works correctly', () => {
-    const config: Config = {
-      sourceDir: '/tmp/source',
-      services: [mockService],
-      dryRun: true
-    };
-
-    convertDocs(config);
-
-    expect(mockFileSystemManagerInstance.ensureDirectoryExists).not.toHaveBeenCalled();
-    expect(mockFileSystemManagerInstance.removeDirectoryIfExists).not.toHaveBeenCalled();
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[Dry Run] 1 files need updates'));
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[Dry Run] File needs update: file1.md'));
-  });
-
-  test('dry run mode when target directory does not exist', () => {
-    mockFileSystemManagerInstance.fileExists.mockImplementation((path) => path === '/tmp/source');
-
-    const config: Config = {
-      sourceDir: '/tmp/source',
-      services: [mockService],
-      dryRun: true
-    };
-
-    convertDocs(config);
-
-    expect(mockFileSystemManagerInstance.fileExists).toHaveBeenCalledWith('/tmp/mock');
-    expect(mockFileSystemManagerInstance.ensureDirectoryExists).not.toHaveBeenCalled();
-    expect(console.log).toHaveBeenCalledWith('[Dry Run] Would create directory /tmp/mock');
-  });
-
-  test('dry run mode when no files need updates', () => {
-    // Setup: processDirectory returns 0 updated files
-    const noUpdatesResult: ProcessResult = {
-      processedCount: 2,
-      processedFiles: ['file1.md', 'file2.md'],
-      services: ['mock'],
-      updatedCount: 0, // Key change for this test
+      processedCount: 0,
+      updatedCount: 0,
       updatedFiles: [],
       deletedCount: 0,
       deletedFiles: []
     };
-    mockedProcessDirectory.mockReturnValueOnce(noUpdatesResult);
+    processDirectoryMock.mockResolvedValue(defaultProcessResult); // mockResolvedValue を使用
 
-    const config: Config = {
-      sourceDir: '/tmp/source',
-      services: [mockService],
-      dryRun: true
-    };
+    // Mock console
+    mockConsoleLog = vi.mocked(console.log);
+    mockConsoleError = vi.mocked(console.error);
+    mockConsoleLog.mockClear();
+    mockConsoleError.mockClear();
 
-    convertDocs(config);
+    mockService = new MockService(mockFSM); // モックインスタンスを渡す
 
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[Dry Run] No files need updates'));
+    // FileSystemManager のインスタンス生成をモック
+    // convertDocs 内で new NodeFileSystemManager() が呼ばれたときに mockFSM を返す
+    MockFSM.mockImplementation(() => mockFSM);
+
   });
 
-  test('sync mode clears target directories', () => {
-    // Setup: processDirectory returns deletion info
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('should process directory and log completion', async () => {
+    const config: Config = { sourceDir: '/tmp/source', services: [mockService], excludeFiles: [], dryRun: false, sync: false };
+    await convertDocs(config);
+    expect(mockFSM.fileExists).toHaveBeenCalledWith('/tmp/source'); // モックインスタンスのメソッドをチェック
+    expect(mockFSM.ensureDirectoryExists).toHaveBeenCalledWith('/tmp/mock'); // モックインスタンスのメソッドをチェック
+    expect(mockFSM.removeDirectoryIfExists).not.toHaveBeenCalled(); // sync: false なので呼ばれない
+    // convertDocs は内部で FSM を new するので、そのインスタンスが渡される
+    expect(processDirectoryMock).toHaveBeenCalledWith(config, mockService, expect.any(NodeFileSystemManager));
+    expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Processing complete'));
+  });
+
+  test('should skip processing if dryRun is true', async () => {
+    const config: Config = { sourceDir: '/tmp/source', services: [mockService], excludeFiles: [], dryRun: true, sync: false };
+    await convertDocs(config);
+    expect(mockFSM.fileExists).toHaveBeenCalledWith('/tmp/source');
+    expect(mockFSM.ensureDirectoryExists).toHaveBeenCalledWith('/tmp/mock');
+    expect(processDirectoryMock).not.toHaveBeenCalled(); // dryRun なので呼ばれない
+    expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Dry run complete'));
+  });
+
+  test('should clean target directory and delete files if sync is true', async () => {
+    // モックの設定: findFiles が返すファイルリスト
+    mockFSM.findFiles.mockResolvedValueOnce(['/tmp/mock/old1.test', '/tmp/mock/old2.test']);
+    // processDirectory が返す結果（同期で更新されたファイル）
     const syncResult: ProcessResult = {
-      processedCount: 2,
-      processedFiles: ['file1.md', 'file2.md'],
-      services: ['mock'],
-      updatedCount: 2,
-      updatedFiles: ['file1.md', 'file2.md'],
-      deletedCount: 3, // Key change for this test
-      deletedFiles: ['old1.md', 'old2.md', 'old3.md']
+      processedCount: 1, updatedCount: 1, updatedFiles: ['new.md'], // 元ファイル名
+      deletedCount: 0, deletedFiles: [] // processDirectory は削除ファイルを返さない想定
     };
-    mockedProcessDirectory.mockReturnValueOnce(syncResult);
+    processDirectoryMock.mockResolvedValueOnce(syncResult); // mockResolvedValue を使用
 
-    const config: Config = {
-      sourceDir: '/tmp/source',
-      services: [mockService],
-      sync: true
-    };
+    const config: Config = { sourceDir: '/tmp/source', services: [mockService], excludeFiles: [], dryRun: false, sync: true };
+    await convertDocs(config);
 
-    convertDocs(config);
+    expect(mockFSM.fileExists).toHaveBeenCalledWith('/tmp/source');
+    expect(mockFSM.ensureDirectoryExists).toHaveBeenCalledWith('/tmp/mock');
+    expect(processDirectoryMock).toHaveBeenCalledWith(config, mockService, expect.any(NodeFileSystemManager));
 
-    expect(mockFileSystemManagerInstance.removeDirectoryIfExists).toHaveBeenCalledWith('/tmp/mock');
-    expect(mockFileSystemManagerInstance.ensureDirectoryExists).toHaveBeenCalledWith('/tmp/mock');
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Sync mode: Deleted 3 outdated files'));
+    // findFiles が呼ばれ、ターゲットディレクトリ内のファイルを検索する
+    expect(mockFSM.findFiles).toHaveBeenCalledWith('/tmp/mock', ['.test']);
+
+    // processDirectory が返した updatedFiles に基づいて、削除すべきファイルを計算
+    // syncResult.updatedFiles は ['new.md'] なので、対応するターゲットファイルは '/tmp/mock/new.test'
+    // findFiles が返した ['/tmp/mock/old1.test', '/tmp/mock/old2.test'] のうち、'/tmp/mock/new.test' に含まれないものが削除対象
+    expect(mockFSM.deleteFile).toHaveBeenCalledTimes(2);
+    expect(mockFSM.deleteFile).toHaveBeenCalledWith('/tmp/mock/old1.test');
+    expect(mockFSM.deleteFile).toHaveBeenCalledWith('/tmp/mock/old2.test');
+
+    expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Deleted 2 orphaned file(s)'));
+    expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Processing complete'));
   });
 
-  test('sync mode with dry run does not clear directories', () => {
-    const config: Config = {
-      sourceDir: '/tmp/source',
-      services: [mockService],
-      sync: true,
-      dryRun: true
-    };
-
-    convertDocs(config);
-
-    expect(mockFileSystemManagerInstance.removeDirectoryIfExists).not.toHaveBeenCalled();
-    expect(mockFileSystemManagerInstance.ensureDirectoryExists).not.toHaveBeenCalled();
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[Dry Run] Would format directory'));
+  test('should throw DirectoryNotFoundError if source directory does not exist', async () => {
+    // Mock fileExists specifically for the source directory check
+    mockFSM.fileExists.mockImplementation(async (filePath) => filePath !== '/nonexistent');
+    const config: Config = { sourceDir: '/nonexistent', services: [mockService], excludeFiles: [], dryRun: false, sync: false };
+    await expect(convertDocs(config)).rejects.toThrow(DirectoryNotFoundError);
+    expect(processDirectoryMock).not.toHaveBeenCalled();
+    // Use template literal for string containing single quotes
+    expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining(`Source directory '/nonexistent' not found.`));
   });
+
+  test('should handle errors during file processing', async () => {
+    const processingError = new Error('Processing failed');
+    processDirectoryMock.mockRejectedValueOnce(processingError); // processDirectory でエラー発生
+    const config: Config = { sourceDir: '/tmp/source', services: [mockService], excludeFiles: [], dryRun: false, sync: false };
+
+    await expect(convertDocs(config)).rejects.toThrow(processingError); // エラーが再スローされることを確認
+    expect(mockConsoleError).toHaveBeenCalledWith('Error during processing:', processingError);
+  });
+
+  test('should handle errors during sync cleanup', async () => {
+    const cleanupError = new Error('Cleanup failed');
+    mockFSM.findFiles.mockResolvedValueOnce(['/tmp/mock/old.test']); // 存在するファイル
+    mockFSM.deleteFile.mockRejectedValueOnce(cleanupError); // deleteFile でエラー発生
+    processDirectoryMock.mockResolvedValueOnce({ // processDirectory は成功
+      processedCount: 0, updatedCount: 0, updatedFiles: [], deletedCount: 0, deletedFiles: []
+    });
+
+    const config: Config = { sourceDir: '/tmp/source', services: [mockService], excludeFiles: [], dryRun: false, sync: true };
+
+    await expect(convertDocs(config)).rejects.toThrow(cleanupError); // エラーが再スローされることを確認
+    expect(mockConsoleError).toHaveBeenCalledWith('Error during sync cleanup:', cleanupError);
+  });
+
 }); 

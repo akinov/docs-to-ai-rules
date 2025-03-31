@@ -1,17 +1,17 @@
-import { describe, test, expect, beforeEach, afterEach, vi, Mock, fn } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import { Command } from 'commander';
 import { ServiceManager } from '../../src/services';
-import fs from 'fs';
+// import fs from 'fs'; // Remove direct fs import if not needed after mock removal
 import { ConfigManager } from '../../src/configManager';
 import { ConfigurationError, DirectoryNotFoundError, FileSystemError } from '../../src/errors';
 
-// Mock file system
+// Mock file system - REMOVE THIS BLOCK
+/*
 vi.mock('fs', () => ({
   readFileSync: vi.fn().mockImplementation((path) => {
     if (path.includes('package.json')) {
       return '{"version": "0.1.0"}';
     }
-    // Add more specific mock behavior if needed for other files
     throw new Error(`fs.readFileSync mock not implemented for ${path}`);
   }),
   existsSync: vi.fn().mockReturnValue(true),
@@ -23,6 +23,7 @@ vi.mock('fs', () => ({
   rmSync: vi.fn(),
   lstatSync: vi.fn().mockReturnValue({ isDirectory: () => false }),
 }));
+*/
 
 // Mock convertDocs
 const convertDocsMock = vi.fn();
@@ -49,18 +50,9 @@ vi.mock('../../src/services', () => ({
   })),
 }));
 
-// Mock ConfigManager to control config loading and validation
+// Define mock functions globally, they will be used by vi.doMock
 const mockGetConfig = vi.fn();
 const mockConfigManagerValidate = vi.fn();
-vi.mock('../../src/configManager', () => ({
-    ConfigManager: vi.fn().mockImplementation(() => ({
-        getConfig: mockGetConfig,
-        validate: mockConfigManagerValidate,
-        // No need to mock private methods like loadConfigFromArgs directly
-        // We control the outcome via the public methods getConfig/validate
-        // and by potentially making the constructor throw errors in specific tests.
-    }))
-}));
 
 // Mock process.exit and capture exit code
 let capturedExitCode: number | undefined;
@@ -76,7 +68,6 @@ const mockExit = vi.spyOn(process, 'exit').mockImplementation((code? : number | 
     }
     return undefined as never; // Keep original behavior signature
 });
-vi.spyOn(process, 'exitCode', 'set'); // Allow setting process.exitCode
 
 // Mock console output
 const originalConsoleLog = console.log;
@@ -84,10 +75,35 @@ const originalConsoleError = console.error;
 const mockConsoleLog = vi.fn();
 const mockConsoleError = vi.fn();
 
+// Mock readFileSync specifically for package.json required by CLI version command
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal() as typeof import('fs');
+  const path = await import('path');
+  const projectRoot = path.resolve(__dirname, '../../..');
+  const packageJsonPath = path.join(projectRoot, 'package.json');
+
+  return {
+    ...actual,
+    readFileSync: vi.fn().mockImplementation((filePath, options) => {
+      const resolvedPath = path.resolve(filePath as string);
+      if (resolvedPath === packageJsonPath) {
+        return '{"version": "0.1.0"}';
+      }
+      // IMPORTANT: If cli.ts or dependencies expect other sync file reads,
+      // they will fail here. Delegate to actual if needed:
+      // return actual.readFileSync(filePath, options);
+      throw new Error(`fs.readFileSync mock called unexpectedly for ${filePath} (resolved: ${resolvedPath})`);
+    }),
+    // existsSync is NOT mocked here anymore, allowing original behavior or other mocks
+  };
+});
+
 // Helper to run the CLI script
 async function runCli() {
-    // Reset modules to ensure cli.ts runs fresh
-    vi.resetModules();
+    // Reset modules potentially needed if mocks change between tests
+    vi.resetModules(); 
+    // Ensure dynamic mocks are cleared before re-importing cli
+    vi.unmock('../../src/configManager'); // Make sure we unmock before potential doMock
     await import('../../src/cli');
 }
 
@@ -95,136 +111,216 @@ describe('CLI Integration Tests', () => {
   beforeEach(() => {
     // Reset mocks and console
     vi.clearAllMocks();
+    mockGetConfig.mockReset();
+    mockConfigManagerValidate.mockReset();
     console.log = mockConsoleLog;
     console.error = mockConsoleError;
     capturedExitCode = undefined;
-    process.exitCode = undefined; // Reset exit code explicitly
 
-    // Default mock implementations
-    mockGetConfig.mockReturnValue({ // Provide a default valid config
+    // --- Default Mock Behaviors (used by test-specific doMocks) ---
+    mockGetConfig.mockReturnValue({ // Default config if needed
         sourceDir: '/path/to/docs',
         services: [mockGetService('cursor')],
         excludeFiles: ['README.md'],
         dryRun: false,
         sync: false,
     });
-    mockConfigManagerValidate.mockReturnValue(undefined); // Default validate passes (throws no error)
+    mockConfigManagerValidate.mockReturnValue(undefined); // Default validate passes
+
+    // convertDocs mock setup
     convertDocsMock.mockResolvedValue(undefined); // Default convertDocs succeeds
-    (fs.existsSync as vi.Mock).mockReturnValue(true); // Default fs mocks
+
+    process.argv = ['node', 'cli.js'];
   });
 
   afterEach(() => {
     // Restore originals
     console.log = originalConsoleLog;
     console.error = originalConsoleError;
+    // Clean up dynamic mocks if vi.doUnmock is preferred (or rely on vi.resetModules)
+    vi.unmock('../../src/configManager'); 
     vi.restoreAllMocks();
+    mockExit.mockRestore();
   });
 
   test('should run successfully with valid arguments', async () => {
-    process.argv = ['node', 'cli.js', '--services', 'cursor'];
+    process.argv = ['node', 'cli.js', '--service', 'cursor', '-s', '/path/to/docs'];
+    const expectedConfig = {
+        sourceDir: '/path/to/docs',
+        services: [mockGetService('cursor')],
+        excludeFiles: ['README.md'],
+        dryRun: false,
+        sync: false,
+    };
+    mockGetConfig.mockReturnValueOnce(expectedConfig);
+    mockConfigManagerValidate.mockReturnValueOnce(undefined); // Explicitly set for this test
 
-    await runCli();
+    // Dynamically mock *before* runCli
+    vi.doMock('../../src/configManager', () => ({
+        ConfigManager: vi.fn().mockImplementation(() => ({
+            getConfig: mockGetConfig,
+            validate: mockConfigManagerValidate,
+        }))
+    }));
 
-    // Verify ConfigManager was instantiated (implies args were parsed ok internally)
-    expect(ConfigManager).toHaveBeenCalled();
-    // Verify validate was called
+    await runCli(); // runCli will now import the dynamically mocked module
+
+    // Need to import ConfigManager *after* the mock is applied if checking constructor call
+    const { ConfigManager: MockedConfigManager } = await import('../../src/configManager');
+    expect(MockedConfigManager).toHaveBeenCalled();
     expect(mockConfigManagerValidate).toHaveBeenCalled();
-    // Verify convertDocs was called with the config from ConfigManager
-    expect(convertDocsMock).toHaveBeenCalledWith(mockGetConfig());
-    // Verify success log and exit code
+    expect(mockGetConfig).toHaveBeenCalled();
+    expect(convertDocsMock).toHaveBeenCalledWith(expectedConfig);
     expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Operation completed successfully'));
-    expect(process.exitCode).toBeUndefined(); // Success means no exit code set
+    expect(capturedExitCode).toBeUndefined();
     expect(mockConsoleError).not.toHaveBeenCalled();
   });
 
   test('should exit with code 1 for unknown service', async () => {
-    process.argv = ['node', 'cli.js', '--services', 'unknown'];
+    process.argv = ['node', 'cli.js', '--service', 'unknown', '-s', '/path/to/source'];
+    const configError = new ConfigurationError('Service "unknown" not found.');
+    mockConfigManagerValidate.mockImplementationOnce(() => { throw configError; });
+    mockGetConfig.mockImplementationOnce(() => { throw new Error('getConfig should not be called'); }); // Safeguard
 
-    (ConfigManager as Mock).mockImplementationOnce(() => {
-        throw new ConfigurationError('Unknown service(s): unknown');
-    });
-
-    await runCli();
-
-    expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Error:'));
-    expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Configuration Error: Unknown service(s): unknown'));
-    expect(process.exitCode).toBe(1);
-    expect(convertDocsMock).not.toHaveBeenCalled();
-  });
-
-  test('should exit with code 1 for missing source directory (validation error)', async () => {
-      process.argv = ['node', 'cli.js', '--services', 'cursor'];
-
-      const validateError = new ConfigurationError('Source directory is required');
-      const mockConfigInstance = {
-        getConfig: mockGetConfig,
-        validate: fn().mockImplementation(() => { throw validateError; })
-      };
-      (ConfigManager as Mock).mockImplementationOnce(() => mockConfigInstance);
-
-      await runCli();
-
-      expect(mockConfigInstance.validate).toHaveBeenCalled();
-      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Error:'));
-      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Configuration Error: Source directory is required'));
-      expect(process.exitCode).toBe(1);
-      expect(convertDocsMock).not.toHaveBeenCalled();
-  });
-
-  test('should exit with code 2 for non-existent source directory (file system error)', async () => {
-    process.argv = ['node', 'cli.js', '-s', '/non/existent/path'];
-
-    const fsError = new DirectoryNotFoundError('/non/existent/path');
-    convertDocsMock.mockImplementationOnce(() => { throw fsError; });
-
-    const configWithErrorPath = { 
-        ...mockGetConfig(),
-        sourceDir: '/non/existent/path' 
-    };
-    mockGetConfig.mockReturnValueOnce(configWithErrorPath);
-    
-    // Use imported Mock type for assertion
-    (ConfigManager as Mock).mockImplementationOnce(() => ({
-        getConfig: () => configWithErrorPath,
-        validate: mockConfigManagerValidate,
+    // Dynamically mock *before* runCli
+    vi.doMock('../../src/configManager', () => ({
+        ConfigManager: vi.fn().mockImplementation(() => ({
+            getConfig: mockGetConfig,
+            validate: mockConfigManagerValidate, // This instance's validate will throw
+        }))
     }));
 
     await runCli();
 
-    expect(convertDocsMock).toHaveBeenCalled();
-    expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Error:'));
-    expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('File System Error: Directory not found: /non/existent/path'));
-    expect(process.exitCode).toBe(2);
+    const { ConfigManager: MockedConfigManager } = await import('../../src/configManager');
+    expect(MockedConfigManager).toHaveBeenCalled();
+    expect(mockConfigManagerValidate).toHaveBeenCalled();
+    expect(mockGetConfig).not.toHaveBeenCalled();
+    expect(convertDocsMock).not.toHaveBeenCalled();
+    expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Configuration Error: Service "unknown" not found.'));
+    expect(capturedExitCode).toBe(1);
+  });
+
+  test('should exit with code 1 for missing source directory (validation error)', async () => {
+      process.argv = ['node', 'cli.js', '--service', 'cursor']; // Missing -s argument
+      const validateError = new ConfigurationError('Source directory is required');
+      mockConfigManagerValidate.mockImplementationOnce(() => { throw validateError; });
+      mockGetConfig.mockImplementationOnce(() => { throw new Error('getConfig should not be called'); });
+
+      // Dynamically mock *before* runCli
+      vi.doMock('../../src/configManager', () => ({
+          ConfigManager: vi.fn().mockImplementation(() => ({
+              getConfig: mockGetConfig,
+              validate: mockConfigManagerValidate, // This instance's validate will throw
+          }))
+      }));
+
+      await runCli();
+
+      const { ConfigManager: MockedConfigManager } = await import('../../src/configManager');
+      expect(MockedConfigManager).toHaveBeenCalled();
+      expect(mockConfigManagerValidate).toHaveBeenCalled();
+      expect(mockGetConfig).not.toHaveBeenCalled();
+      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Configuration Error: Source directory is required'));
+      expect(capturedExitCode).toBe(1);
+      expect(convertDocsMock).not.toHaveBeenCalled();
+  });
+
+  test('should exit with code 2 for non-existent source directory', async () => {
+    process.argv = ['node', 'cli.js', '--service', 'cursor', '-s', '/nonexistent'];
+    const configForNonExistent = {
+      sourceDir: '/nonexistent',
+      services: [mockGetService('cursor')],
+      excludeFiles: [],
+      dryRun: false,
+      sync: false,
+    };
+    mockGetConfig.mockReturnValueOnce(configForNonExistent);
+    mockConfigManagerValidate.mockReturnValueOnce(undefined);
+    const error = new DirectoryNotFoundError('/nonexistent');
+    convertDocsMock.mockRejectedValueOnce(error);
+
+    // Dynamically mock *before* runCli
+    vi.doMock('../../src/configManager', () => ({
+        ConfigManager: vi.fn().mockImplementation(() => ({
+            getConfig: mockGetConfig,
+            validate: mockConfigManagerValidate,
+        }))
+    }));
+
+    await runCli();
+
+    const { ConfigManager: MockedConfigManager } = await import('../../src/configManager');
+    expect(MockedConfigManager).toHaveBeenCalled();
+    expect(mockConfigManagerValidate).toHaveBeenCalled();
+    expect(mockGetConfig).toHaveBeenCalled();
+    expect(convertDocsMock).toHaveBeenCalledWith(configForNonExistent);
+    expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining(`File System Error: ${error.message}`));
+    expect(capturedExitCode).toBe(2);
   });
 
   test('should pass dryRun option correctly', async () => {
-    process.argv = ['node', 'cli.js', '--services', 'cursor', '--dry-run'];
+    process.argv = ['node', 'cli.js', '--service', 'cursor', '-s', '/path/to/source', '--dry-run'];
+    const configWithDryRun = {
+      sourceDir: '/path/to/source',
+      services: [mockGetService('cursor')],
+      excludeFiles: [],
+      dryRun: true,
+      sync: false,
+    };
+    mockGetConfig.mockReturnValueOnce(configWithDryRun);
+    mockConfigManagerValidate.mockReturnValueOnce(undefined);
+    convertDocsMock.mockResolvedValueOnce(undefined);
 
-    // Ensure ConfigManager produces config with dryRun: true
-    // The actual parsing is internal to ConfigManager mock, so we check the output
-    // If ConfigManager was NOT mocked, this test would verify its parsing.
-    // Since it IS mocked, we set the mock return value:
-    mockGetConfig.mockReturnValueOnce({ ...mockGetConfig(), dryRun: true });
+    // Dynamically mock *before* runCli
+    vi.doMock('../../src/configManager', () => ({
+        ConfigManager: vi.fn().mockImplementation(() => ({
+            getConfig: mockGetConfig,
+            validate: mockConfigManagerValidate,
+        }))
+    }));
 
     await runCli();
 
+    const { ConfigManager: MockedConfigManager } = await import('../../src/configManager');
+    expect(MockedConfigManager).toHaveBeenCalled();
+    expect(mockConfigManagerValidate).toHaveBeenCalled();
+    expect(mockGetConfig).toHaveBeenCalled();
     expect(convertDocsMock).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }));
-    expect(process.exitCode).toBeUndefined();
+    expect(mockConsoleError).not.toHaveBeenCalled();
+    expect(capturedExitCode).toBeUndefined();
   });
 
   test('should pass shorthand -d as dry run', async () => {
-    process.argv = ['node', 'cli.js', '--services', 'cursor', '-d'];
+    process.argv = ['node', 'cli.js', '--service', 'cursor', '-s', '/path/to/source', '-d'];
+    const configWithDryRun = {
+      sourceDir: '/path/to/source',
+      services: [mockGetService('cursor')],
+      excludeFiles: [],
+      dryRun: true,
+      sync: false,
+    };
+    mockGetConfig.mockReturnValueOnce(configWithDryRun);
+    mockConfigManagerValidate.mockReturnValueOnce(undefined);
+    convertDocsMock.mockResolvedValueOnce(undefined);
 
-    // Set mock return value for ConfigManager
-    mockGetConfig.mockReturnValueOnce({ ...mockGetConfig(), dryRun: true });
+    // Dynamically mock *before* runCli
+    vi.doMock('../../src/configManager', () => ({
+        ConfigManager: vi.fn().mockImplementation(() => ({
+            getConfig: mockGetConfig,
+            validate: mockConfigManagerValidate,
+        }))
+    }));
 
     await runCli();
 
+    const { ConfigManager: MockedConfigManager } = await import('../../src/configManager');
+    expect(MockedConfigManager).toHaveBeenCalled();
+    expect(mockConfigManagerValidate).toHaveBeenCalled();
+    expect(mockGetConfig).toHaveBeenCalled();
     expect(convertDocsMock).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }));
-    expect(process.exitCode).toBeUndefined();
+    expect(mockConsoleError).not.toHaveBeenCalled();
+    expect(capturedExitCode).toBeUndefined();
   });
-
-  // Add more tests for other error types (FileSystemError during copy/delete, etc.)
-  // Add tests for sync mode
 
 }); 
