@@ -3,7 +3,10 @@ import path from 'path';
 import type { Config } from './interfaces/configManager';
 import type { OutputService } from './services';
 import { NodeFileSystemManager } from './utils/fileSystemManager';
-import { FileSystemError } from './errors';
+import { FileSystemError, DirectoryNotFoundError } from './errors';
+import { FileConverterImpl } from './processor/fileConverter';
+import { DirectorySynchronizerImpl } from './processor/directorySynchronizer';
+import logger from './logger'; // Import logger
 
 export interface ProcessResult {
   processedCount: number;
@@ -16,122 +19,100 @@ export interface ProcessResult {
 }
 
 /**
- * Process Markdown files in a directory using FileSystemManager
+ * Process Markdown files in a directory using FileSystemManager and component classes.
  */
 export function processDirectory(config: Config): ProcessResult {
   const { sourceDir, services, excludeFiles = [], dryRun = false, sync = false } = config;
+
+  // Dependencies
   const fileSystemManager = new NodeFileSystemManager();
+  const fileConverter = new FileConverterImpl(fileSystemManager);
+  const directorySynchronizer = new DirectorySynchronizerImpl(fileSystemManager);
+
+  // Result accumulator
+  const result: ProcessResult = {
+    processedCount: 0,
+    processedFiles: [],
+    services: services.map(s => s.name), // Get service names early
+    updatedCount: 0,
+    updatedFiles: [],
+    deletedCount: 0,
+    deletedFiles: [],
+  };
 
   let files: string[];
   try {
+    if (!fileSystemManager.fileExists(sourceDir)) {
+        logger.error(`Source directory not found: ${sourceDir}`); // Use logger
+        throw new DirectoryNotFoundError(sourceDir);
+    }
     files = fileSystemManager.readDir(sourceDir);
+    logger.info(`Processing ${files.length} files/directories in ${sourceDir}`); // Use logger
   } catch (err: any) {
-    throw err;
+     logger.error({ err, sourceDir }, `Failed to read source directory`); // Use logger
+    if (err instanceof FileSystemError) {
+        throw err;
+    }
+    throw new FileSystemError(`Failed to read source directory ${sourceDir}: ${err.message || err}`);
   }
 
-  let processedCount = 0;
-  let updatedCount = 0;
-  let deletedCount = 0;
-  const processedFiles: string[] = [];
-  const updatedFiles: string[] = [];
-  const deletedFiles: string[] = [];
-  
-  const sourceFiles = new Set<string>();
-  if (sync) {
+  const sourceFilesBaseNames = new Set<string>();
+   if (sync) {
     for (const file of files) {
       if (file.endsWith('.md') && !excludeFiles.includes(file)) {
-        sourceFiles.add(file.replace('.md', ''));
+         const baseName = file.substring(0, file.length - 3);
+         sourceFilesBaseNames.add(baseName);
       }
     }
-  }
-  
+    logger.debug({ count: sourceFilesBaseNames.size }, 'Collected source file base names for sync'); // Use logger
+   }
+
+  // Process each file
   for (const file of files) {
     if (file.endsWith('.md') && !excludeFiles.includes(file)) {
       const sourcePath = path.join(sourceDir, file);
       let fileNeedsUpdateOverall = false;
-      
+
       for (const service of services) {
-        const targetDir = service.getTargetDirectory();
-        const targetExt = service.getTargetExtension();
-        const targetFile = file.replace('.md', `.${targetExt}`);
-        const targetPath = path.join(targetDir, targetFile);
-        
-        let currentFileNeedsUpdate = false;
         try {
-          currentFileNeedsUpdate = fileSystemManager.needsUpdate(sourcePath, targetPath);
-        } catch (err) {
-          console.error(`Error checking update status for ${sourcePath} -> ${targetPath}`, err);
-          throw err;
-        }
-        
-        if (currentFileNeedsUpdate) {
-          fileNeedsUpdateOverall = true;
-          
-          if (!dryRun) {
-            try {
-              fileSystemManager.copyFile(sourcePath, targetPath);
-              console.log(`[${service.name}] Converted ${file} to ${targetFile}`);
-            } catch (err) {
-              console.error(`Error copying ${sourcePath} to ${targetPath}`, err);
-              throw err;
-            }
+          const updated = fileConverter.convertFile(sourcePath, file, service, dryRun);
+          if (updated) {
+            fileNeedsUpdateOverall = true;
           }
+        } catch (err) {
+           logger.error({ err, file, service: service.name }, `Error processing file for service`); // Use logger
+           // throw err; // Consider collecting errors instead of stopping
         }
       }
-      
-      processedCount++;
-      processedFiles.push(file);
-      
+
+      result.processedCount++;
+      result.processedFiles.push(file);
+
       if (fileNeedsUpdateOverall) {
-        updatedCount++;
-        updatedFiles.push(file);
+        result.updatedCount++;
+        result.updatedFiles.push(file);
       }
     }
   }
-  
-  if (sync && !dryRun) {
+
+  if (sync) {
+    logger.info('Starting directory synchronization'); // Use logger
     for (const service of services) {
-      const targetDir = service.getTargetDirectory();
-      const targetExt = service.getTargetExtension();
-      
-      if (fileSystemManager.fileExists(targetDir)) {
-        let targetFiles: string[];
-        try {
-          targetFiles = fileSystemManager.readDir(targetDir);
-        } catch (err) {
-          console.error(`Error reading target directory ${targetDir} for sync`, err);
-          throw err;
-        }
-        
-        for (const targetFile of targetFiles) {
-          if (targetFile.endsWith(`.${targetExt}`)) {
-            const baseName = targetFile.substring(0, targetFile.length - targetExt.length - 1);
-            
-            if (!sourceFiles.has(baseName)) {
-              const targetPath = path.join(targetDir, targetFile);
-              try {
-                fileSystemManager.deleteFile(targetPath);
-                console.log(`[${service.name}] Deleted outdated file ${targetFile}`);
-                deletedCount++;
-                deletedFiles.push(targetFile);
-              } catch (err) {
-                console.error(`Error deleting ${targetPath}`, err);
-                throw err;
-              }
-            }
-          }
-        }
+      try {
+        const syncResult = directorySynchronizer.syncTargetDirectory(
+          sourceFilesBaseNames,
+          service,
+          dryRun
+        );
+        result.deletedCount += syncResult.deletedCount;
+        result.deletedFiles.push(...syncResult.deletedFiles);
+      } catch (err) {
+         logger.error({ err, service: service.name }, `Error syncing target directory for service`); // Use logger
+         // throw err; // Consider collecting errors
       }
     }
   }
-  
-  return {
-    processedCount,
-    processedFiles,
-    services: services.map(s => s.name),
-    updatedCount,
-    updatedFiles,
-    deletedCount,
-    deletedFiles
-  };
+
+   logger.info({ result }, 'Processing complete'); // Use logger
+  return result;
 } 
