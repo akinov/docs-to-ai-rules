@@ -91,21 +91,21 @@ The project follows the architecture described in `core.mdc`:
     *   Update related tests.
     *   Verify behavior is unchanged.
 
-- [ ] **Task 3: Implement `ConfigManager`**
+- [x] **Task 3: Implement `ConfigManager`**
     *   Define the interface for `ConfigManager`, specifying how configuration is accessed.
     *   Create the `ConfigManager` module with validation capabilities.
     *   Refactor `cli.ts` to use `ConfigManager` for parsing/loading config.
     *   Update `index.ts` and `processor.ts` to get config from `ConfigManager`.
-    *   Update tests.
+    *   Update tests. (Note: CLI test updated, other tests pending)
 
-- [ ] **Task 4: Implement Custom Errors**
+- [x] **Task 4: Implement Custom Errors**
     *   Define custom error classes in `src/errors.ts`, categorized by domain:
         * File system errors (`DirectoryNotFoundError`, `FileAccessError`, etc.)
         * Configuration errors (`ConfigurationError`, `ValidationError`, etc.)
         * Service errors (`ServiceInitializationError`, etc.)
     *   Replace `console.error` and `process.exit(1)` in `index.ts`, `processor.ts`, `services` with throwing custom errors.
     *   Implement centralized error handling and reporting in `cli.ts`.
-    *   Update tests to check for specific errors.
+    *   Update tests to check for specific errors. (Note: CLI test updated but has lint errors, other tests pending)
 
 - [ ] **Task 5: Refactor `processor.ts` - Part 2 (Decomposition)**
     *   Clearly define interfaces for the new components before implementation:
