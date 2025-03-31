@@ -4,21 +4,21 @@ import { processDirectory } from './processor';
 import type { OutputService } from './services';
 import type { Config } from './interfaces/configManager';
 import { NodeFileSystemManager } from './utils/fileSystemManager';
+import { DirectoryNotFoundError, FileSystemError } from './errors';
 
 export function convertDocs(config: Config): void {
   const { sourceDir, services, dryRun = false, sync = false } = config;
   const fileSystemManager = new NodeFileSystemManager();
 
-  // Check if source directory exists using FileSystemManager
-  if (!fileSystemManager.fileExists(sourceDir)) {
-    console.error(`Error: Source directory ${sourceDir} does not exist`);
-    process.exit(1);
-  }
+  try {
+    // Check if source directory exists using FileSystemManager
+    if (!fileSystemManager.fileExists(sourceDir)) {
+      throw new DirectoryNotFoundError(sourceDir);
+    }
 
-  // Process target directories using FileSystemManager
-  for (const service of services) {
-    const targetDir = service.getTargetDirectory();
-    try {
+    // Process target directories using FileSystemManager
+    for (const service of services) {
+      const targetDir = service.getTargetDirectory();
       const targetExists = fileSystemManager.fileExists(targetDir);
 
       if (!targetExists) {
@@ -35,15 +35,10 @@ export function convertDocs(config: Config): void {
           console.log(`[Dry Run] Would format directory ${targetDir}`);
         }
       }
-    } catch (err) {
-      console.error(`Error: Could not process directory ${targetDir}`, err);
-      process.exit(1);
     }
-  }
 
-  // Execute conversion
-  try {
-    const result = processDirectory({...config, sync});
+    // Execute conversion
+    const result = processDirectory(config);
     
     if (dryRun) {
       if (result.updatedCount > 0) {
@@ -61,8 +56,7 @@ export function convertDocs(config: Config): void {
       }
     }
   } catch (err) {
-    console.error('Error during file conversion:', err);
-    process.exit(1);
+    throw err;
   }
 }
 

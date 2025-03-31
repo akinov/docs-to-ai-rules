@@ -4,33 +4,41 @@ import { ServiceManager } from './services';
 import { expandTilde } from './services/base';
 import type { Config } from './interfaces/configManager';
 import type { OutputService } from './services';
+import { ConfigurationError, ValidationError } from './errors'; // Import custom errors
 
 export class ConfigManager {
   private config: Config;
 
   constructor() {
-    // This is a simple implementation for now.
-    // In a real scenario, this might load from a file, env vars, etc.
-    // and perform more robust validation.
     this.config = this.loadConfigFromArgs();
+    this.validate(); // Validate config upon instantiation
   }
 
   private loadConfigFromArgs(): Config {
     const program = new Command();
     const serviceManager = new ServiceManager();
 
+    // Define options separately for clarity
     program
       .option('-s, --source <directory>', 'Source directory', './docs/rules')
       .option(
-        '--services <services>', 
-        'Target services (comma-separated)', 
+        '--services <services>',
+        'Target services (comma-separated)',
         'cursor'
       )
       .option('-x, --exclude <files>', 'Files to exclude (comma-separated)', 'README.md')
       .option('-d, --dry-run', 'Check for updates without modifying files')
       .option('--sync', 'Format output directory and sync files completely');
 
-    program.parse();
+    // Parse arguments without exiting on error, allowing us to handle errors
+    program.exitOverride(); // Prevent commander from calling process.exit
+    try {
+        program.parse(process.argv);
+    } catch (err: any) {
+        // Catch errors from commander (like missing required options)
+        throw new ConfigurationError(`Failed to parse command line arguments: ${err.message}`);
+    }
+
     const options = program.opts();
 
     const sourceDir = path.resolve(process.cwd(), expandTilde(options.source));
@@ -40,23 +48,32 @@ export class ConfigManager {
 
     const serviceNames = options.services.split(',').map((s: string) => s.trim().toLowerCase());
     const availableServices = serviceManager.getAllServiceNames();
-    const services = serviceManager.getServices(serviceNames);
 
-    // Check for non-existent services (Consider moving this validation elsewhere or making it part of ConfigManager)
+    // Check for invalid service names
     const invalidServices = serviceNames.filter((name: string) => !availableServices.includes(name));
     if (invalidServices.length > 0) {
-      // Ideally, throw a specific ConfigurationError here
-      console.error(`Error: Unknown service(s): ${invalidServices.join(', ')}`);
-      console.log(`Available services: ${availableServices.join(', ')}`);
-      process.exit(1); // Replace with error throwing later
+      throw new ConfigurationError(
+        `Unknown service(s): ${invalidServices.join(', ')}. Available: ${availableServices.join(', ')}`
+      );
     }
 
-    if (services.length === 0) {
-        // Ideally, throw a specific ConfigurationError here
-      console.error('Error: No valid services specified');
-      console.log(`Available services: ${availableServices.join(', ')}`);
-      process.exit(1); // Replace with error throwing later
+    const services = serviceManager.getServices(serviceNames);
+
+    // Check if any valid services were actually found/specified
+    if (services.length === 0 && serviceNames.length > 0) {
+      // This case should ideally be caught by the invalidServices check above,
+      // but added as a safeguard.
+      throw new ConfigurationError(
+        `No valid services found for names: ${serviceNames.join(', ')}. Available: ${availableServices.join(', ')}`
+      );
     }
+    // If no services were specified at all
+    if (services.length === 0) {
+        throw new ConfigurationError(
+          `No services specified. Available: ${availableServices.join(', ')}`
+        );
+    }
+
 
     return {
       sourceDir,
@@ -70,19 +87,18 @@ export class ConfigManager {
   public getConfig(): Config {
     return this.config;
   }
-  
-  // Add methods for validation if needed
-  public validate(): boolean {
-      // Basic validation example
-      if (!this.config.sourceDir) {
-          console.error("Source directory is required.");
-          return false;
-      }
-      if (this.config.services.length === 0) {
-          console.error("At least one service must be specified.");
-          return false;
-      }
-      // Add more validation rules as needed
-      return true;
+
+  // Validate the loaded configuration
+  public validate(): void {
+    if (!this.config.sourceDir) {
+      throw new ValidationError('Source directory (--source) is required.');
+    }
+    if (this.config.services.length === 0) {
+        // This check might be redundant due to loadConfigFromArgs, but good practice
+      throw new ValidationError('At least one valid service (--services) must be specified.');
+    }
+    // Add more validation rules here (e.g., check if sourceDir exists and is a directory)
+    // Note: Checking sourceDir existence might be better suited for the FileSystemManager
+    // or the main execution flow in index.ts to provide context.
   }
 } 
