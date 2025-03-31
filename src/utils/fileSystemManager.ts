@@ -2,19 +2,21 @@ import fs from 'fs';
 import path from 'path';
 import type { FileSystemManager, FileStats } from '../interfaces/fileSystemManager';
 import { FileSystemError, FileAccessError, DirectoryNotFoundError } from '../errors'; // Import custom errors
+import logger from '../logger'; // Import logger
 
 export class NodeFileSystemManager implements FileSystemManager {
   ensureDirectoryExists(dirPath: string): void {
     try {
       if (!fs.existsSync(dirPath)) {
         fs.mkdirSync(dirPath, { recursive: true });
-        // console.log(`Created directory: ${dirPath}`); // Logging will be handled elsewhere
+        logger.debug(`Created directory: ${dirPath}`); // Use logger
       }
     } catch (err: any) {
-        // Improve error context
         if (err.code === 'EACCES') {
+            logger.error({ err, path: dirPath }, 'Permission denied creating directory'); // Use logger
             throw new FileAccessError(dirPath, 'create');
         } else {
+            logger.error({ err, path: dirPath }, 'Failed to ensure directory exists'); // Use logger
             throw new FileSystemError(`Failed to ensure directory exists`, dirPath);
         }
     }
@@ -23,8 +25,7 @@ export class NodeFileSystemManager implements FileSystemManager {
   removeDirectoryIfExists(dirPath: string): void {
     try {
         if (fs.existsSync(dirPath)) {
-            // console.log(`Formatting directory ${dirPath}`); // Logging
-            // Clear contents instead of removing the directory itself
+            logger.debug(`Clearing contents of directory ${dirPath}`); // Use logger
             const dirContents = fs.readdirSync(dirPath);
             for (const item of dirContents) {
             const itemPath = path.join(dirPath, item);
@@ -35,23 +36,25 @@ export class NodeFileSystemManager implements FileSystemManager {
                 } else {
                 fs.unlinkSync(itemPath);
                 }
-                // console.log(`Removed ${itemPath}`); // Logging
+                logger.debug(`Removed ${itemPath}`); // Use logger
             } catch (err: any) {
-                // More specific error handling for removal
                  if (err.code === 'EACCES') {
+                    logger.error({ err, path: itemPath }, 'Permission denied removing item during cleanup'); // Use logger
                     throw new FileAccessError(itemPath, 'remove');
                  } else {
+                    logger.error({ err, path: itemPath }, 'Error removing item during directory cleanup'); // Use logger
                     throw new FileSystemError(`Error removing item during directory cleanup`, itemPath);
                  }
             }
             }
         }
     } catch (err: any) {
-        // Catch errors from readdirSync or initial existsSync
-        if (err instanceof FileSystemError) throw err; // Don't wrap our own errors
+        if (err instanceof FileSystemError) throw err;
         if (err.code === 'EACCES') {
+            logger.error({ err, path: dirPath }, 'Permission denied accessing directory for cleanup'); // Use logger
             throw new FileAccessError(dirPath, 'read/access');
         } else {
+            logger.error({ err, path: dirPath }, 'Failed to clear directory contents'); // Use logger
             throw new FileSystemError('Failed to clear directory contents', dirPath);
         }
     }
@@ -61,10 +64,11 @@ export class NodeFileSystemManager implements FileSystemManager {
     try {
         return fs.existsSync(filePath);
     } catch (err: any) {
-        // existsSync can technically throw EACCES, though less common
         if (err.code === 'EACCES') {
+             logger.warn({ err, path: filePath }, 'Permission denied checking file existence'); // Use logger (warn, as it might be recoverable)
              throw new FileAccessError(filePath, 'check existence of');
         }
+        logger.error({ err, path: filePath }, 'Failed to check file existence'); // Use logger
         throw new FileSystemError('Failed to check file existence', filePath);
     }
   }
@@ -75,11 +79,12 @@ export class NodeFileSystemManager implements FileSystemManager {
       return { mtime: stats.mtime, size: stats.size };
     } catch (error: any) {
       if (error.code === 'ENOENT') {
-        return null; // File does not exist - not an error in this context
+        return null;
       } else if (error.code === 'EACCES') {
+          logger.error({ err: error, path: filePath }, 'Permission denied reading file stats'); // Use logger
           throw new FileAccessError(filePath, 'read stats of');
       }
-      // console.error(`Error getting stats for ${filePath}`, error); // Logging
+      logger.error({ err: error, path: filePath }, 'Error getting file stats'); // Use logger
       throw new FileSystemError(`Failed to get file stats`, filePath);
     }
   }
@@ -87,66 +92,71 @@ export class NodeFileSystemManager implements FileSystemManager {
   copyFile(sourcePath: string, targetPath: string): void {
     try {
       const targetDir = path.dirname(targetPath);
-      this.ensureDirectoryExists(targetDir); // This can throw FileSystemError
+      this.ensureDirectoryExists(targetDir);
       fs.copyFileSync(sourcePath, targetPath);
+      logger.debug({ sourcePath, targetPath }, 'Copied file'); // Use logger
     } catch (err: any) {
-        if (err instanceof FileSystemError) throw err; // Don't wrap our own errors
-        // Handle potential errors from copyFileSync
+        if (err instanceof FileSystemError) throw err;
         if (err.code === 'ENOENT' && err.path === sourcePath) {
+            logger.error({ err, sourcePath }, 'Source file not found for copy'); // Use logger
             throw new FileSystemError('Source file not found for copy', sourcePath);
         } else if (err.code === 'EACCES') {
-            // Determine if it was source read or target write permission issue
             try {
                 fs.accessSync(sourcePath, fs.constants.R_OK);
-                // If source access is okay, it must be target write issue
+                 logger.error({ err, path: targetPath }, 'Permission denied writing target file'); // Use logger
                  throw new FileAccessError(targetPath, 'write to');
             } catch {
-                // Source read access failed
+                logger.error({ err, path: sourcePath }, 'Permission denied reading source file'); // Use logger
                 throw new FileAccessError(sourcePath, 'read from');
             }
         }
-      // console.error(`Error copying file from ${sourcePath} to ${targetPath}`, err); // Logging
-      throw new FileSystemError(`Failed to copy file from ${sourcePath} to ${targetPath}`, err.message); // Include original message if helpful
+      logger.error({ err, sourcePath, targetPath }, 'Failed to copy file'); // Use logger
+      throw new FileSystemError(`Failed to copy file from ${sourcePath} to ${targetPath}`, err.message);
     }
   }
 
   deleteFile(filePath: string): void {
     try {
-      if (fs.existsSync(filePath)) { // Avoid ENOENT from unlinkSync
+      if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
-        // console.log(`Deleted file: ${filePath}`); // Logging
+        logger.debug(`Deleted file: ${filePath}`); // Use logger
       }
     } catch (err: any) {
         if (err.code === 'EACCES') {
+            logger.error({ err, path: filePath }, 'Permission denied deleting file'); // Use logger
             throw new FileAccessError(filePath, 'delete');
         } else if (err.code === 'EISDIR') {
-            // Optionally handle trying to delete a directory as a file
+             logger.error({ err, path: filePath }, 'Attempted to delete a directory as a file'); // Use logger
              throw new FileSystemError('Attempted to delete a directory as a file', filePath);
         }
-      // console.error(`Error deleting file ${filePath}`, err); // Logging
+      logger.error({ err, path: filePath }, 'Failed to delete file'); // Use logger
       throw new FileSystemError(`Failed to delete file`, filePath);
     }
   }
 
   needsUpdate(sourcePath: string, targetPath: string): boolean {
-    // fileExists and getFileStats now throw specific errors if needed
     if (!this.fileExists(targetPath)) {
       return true;
     }
-    const sourceStats = this.getFileStats(sourcePath);
-    const targetStats = this.getFileStats(targetPath);
+    let sourceStats: FileStats | null = null;
+    let targetStats: FileStats | null = null;
+    try {
+      sourceStats = this.getFileStats(sourcePath);
+      targetStats = this.getFileStats(targetPath);
+    } catch (err) {
+        // Errors are already logged in getFileStats, just rethrow
+        throw err;
+    }
 
     if (!sourceStats) {
-        // Source file doesn't exist or cannot be accessed
+        // This case might be handled by getFileStats throwing ENOENT/EACCESS, but check just in case
+        logger.error({ path: sourcePath }, 'Cannot compare update time: Source file stats unavailable'); // Use logger
         throw new FileSystemError('Cannot compare update time: Source file stats unavailable', sourcePath);
     }
     if (!targetStats) {
-        // Target exists but stats couldn't be read (e.g., permissions changed)
-        // Treat this as needing an update or throw?
-        // Let's consider it needs an update to be safe, or re-throw FileAccessError from getFileStats
-        // Rethrowing seems more accurate.
-         this.getFileStats(targetPath); // This will likely re-throw the specific error
-         return true; // Fallback, though should not be reached if getFileStats throws
+         // Should be handled by getFileStats if file exists but stats cannot be read
+         logger.error({ path: targetPath }, 'Cannot compare update time: Target file stats unavailable despite existence'); // Use logger
+         throw new FileSystemError('Cannot compare update time: Target file stats unavailable', targetPath);
     }
 
     return sourceStats.mtime > targetStats.mtime;
@@ -157,13 +167,16 @@ export class NodeFileSystemManager implements FileSystemManager {
        return fs.readFileSync(filePath, 'utf-8');
      } catch (err: any) {
          if (err.code === 'ENOENT') {
+             logger.error({ err, path: filePath }, 'File not found for reading'); // Use logger
              throw new DirectoryNotFoundError(filePath); // Or a more specific FileNotFoundError
          } else if (err.code === 'EACCES') {
+            logger.error({ err, path: filePath }, 'Permission denied reading file'); // Use logger
             throw new FileAccessError(filePath, 'read');
          } else if (err.code === 'EISDIR') {
+             logger.error({ err, path: filePath }, 'Attempted to read a directory as a file'); // Use logger
              throw new FileSystemError('Attempted to read a directory as a file', filePath);
          }
-       // console.error(`Error reading file ${filePath}`, err); // Logging
+       logger.error({ err, path: filePath }, 'Failed to read file'); // Use logger
        throw new FileSystemError(`Failed to read file`, filePath);
      }
   }
@@ -173,14 +186,17 @@ export class NodeFileSystemManager implements FileSystemManager {
       const targetDir = path.dirname(filePath);
       this.ensureDirectoryExists(targetDir);
       fs.writeFileSync(filePath, content, 'utf-8');
+      logger.debug({ path: filePath }, 'Wrote file'); // Use logger
     } catch (err: any) {
-        if (err instanceof FileSystemError) throw err; // Don't wrap
+        if (err instanceof FileSystemError) throw err;
         if (err.code === 'EACCES') {
+            logger.error({ err, path: filePath }, 'Permission denied writing file'); // Use logger
             throw new FileAccessError(filePath, 'write');
         } else if (err.code === 'EISDIR') {
+            logger.error({ err, path: filePath }, 'Attempted to write to a directory path'); // Use logger
             throw new FileSystemError('Attempted to write to a path that is a directory', filePath);
         }
-      // console.error(`Error writing file ${filePath}`, err); // Logging
+      logger.error({ err, path: filePath }, 'Failed to write file'); // Use logger
       throw new FileSystemError(`Failed to write file`, filePath);
     }
   }
@@ -190,13 +206,16 @@ export class NodeFileSystemManager implements FileSystemManager {
       return fs.readdirSync(dirPath);
     } catch (err: any) {
         if (err.code === 'ENOENT') {
+            logger.error({ err, path: dirPath }, 'Directory not found for reading'); // Use logger
             throw new DirectoryNotFoundError(dirPath);
         } else if (err.code === 'EACCES') {
+            logger.error({ err, path: dirPath }, 'Permission denied reading directory'); // Use logger
             throw new FileAccessError(dirPath, 'read directory');
         } else if (err.code === 'ENOTDIR') {
+            logger.error({ err, path: dirPath }, 'Path is not a directory'); // Use logger
             throw new FileSystemError('Path is not a directory', dirPath);
         }
-      // console.error(`Error reading directory ${dirPath}`, err); // Logging
+      logger.error({ err, path: dirPath }, 'Failed to read directory'); // Use logger
       throw new FileSystemError(`Failed to read directory`, dirPath);
     }
   }
