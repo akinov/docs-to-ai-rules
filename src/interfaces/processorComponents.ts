@@ -19,7 +19,7 @@ export interface FileConverter {
     file: string,
     service: OutputService,
     dryRun: boolean
-  ): boolean;
+  ): Promise<boolean>;
 }
 
 /**
@@ -38,5 +38,5 @@ export interface DirectorySynchronizer {
     sourceFilesBaseNames: Set<string>,
     service: OutputService,
     dryRun: boolean
-  ): { deletedCount: number; deletedFiles: string[] };
+  ): Promise<{ deletedCount: number; deletedFiles: string[] }>;
 } 

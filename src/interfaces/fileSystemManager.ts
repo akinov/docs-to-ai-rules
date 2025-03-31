@@ -6,14 +6,14 @@ export interface FileStats {
 }
 
 export interface FileSystemManager {
-  ensureDirectoryExists(dirPath: string): void;
-  removeDirectoryIfExists(dirPath: string): void;
-  fileExists(filePath: string): boolean;
-  getFileStats(filePath: string): FileStats | null;
-  copyFile(sourcePath: string, targetPath: string): void;
-  deleteFile(filePath: string): void;
-  needsUpdate(sourcePath: string, targetPath: string): boolean;
-  readFile(filePath: string): string;
-  writeFile(filePath: string, content: string): void;
-  readDir(dirPath: string): string[];
+  ensureDirectoryExists(dirPath: string): Promise<void>;
+  removeDirectoryIfExists(dirPath: string): Promise<void>;
+  fileExists(filePath: string): Promise<boolean>;
+  getFileStats(filePath: string): Promise<FileStats | null>;
+  copyFile(sourcePath: string, targetPath: string): Promise<void>;
+  deleteFile(filePath: string): Promise<void>;
+  needsUpdate(sourcePath: string, targetPath: string): Promise<boolean>;
+  readFile(filePath: string): Promise<string>;
+  writeFile(filePath: string, content: string): Promise<void>;
+  readDir(dirPath: string): Promise<string[]>;
 } 

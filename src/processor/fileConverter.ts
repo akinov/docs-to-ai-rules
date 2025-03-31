@@ -1,18 +1,18 @@
 import path from 'path';
 import type { OutputService } from '../services';
 import type { FileSystemManager } from '../interfaces/fileSystemManager';
-import type { FileConverter } from '../../interfaces/processorComponents';
-import logger from '../../logger'; // Import logger
+import type { FileConverter } from '../interfaces/processorComponents';
+import logger from '../logger'; // Import logger
 
 export class FileConverterImpl implements FileConverter {
   constructor(private fileSystemManager: FileSystemManager) {}
 
-  convertFile(
+  async convertFile(
     sourcePath: string,
     file: string,
     service: OutputService,
     dryRun: boolean
-  ): boolean {
+  ): Promise<boolean> {
     const targetDir = service.getTargetDirectory();
     const targetExt = service.getTargetExtension();
     const targetFile = file.replace(/\.md$/, `.${targetExt}`); // Ensure only .md extension is replaced
@@ -20,7 +20,7 @@ export class FileConverterImpl implements FileConverter {
 
     let needsUpdate = false;
     try {
-      needsUpdate = this.fileSystemManager.needsUpdate(sourcePath, targetPath);
+      needsUpdate = await this.fileSystemManager.needsUpdate(sourcePath, targetPath);
     } catch (err) {
       logger.error({ err, sourcePath, targetPath }, `Error checking update status for ${file}`); // Use logger
       throw err; // Re-throw original error or custom error
@@ -31,8 +31,8 @@ export class FileConverterImpl implements FileConverter {
         try {
           // Ensure target directory exists before copying
           // Fix: Use ensureDirectoryExists which exists in NodeFileSystemManager
-          this.fileSystemManager.ensureDirectoryExists(targetDir);
-          this.fileSystemManager.copyFile(sourcePath, targetPath);
+          await this.fileSystemManager.ensureDirectoryExists(targetDir);
+          await this.fileSystemManager.copyFile(sourcePath, targetPath);
           logger.info(`[${service.name}] Converted ${file} to ${targetFile}`); // Use logger
         } catch (err) {
           logger.error({ err, sourcePath, targetPath }, `Error copying file ${file} for service ${service.name}`); // Use logger
