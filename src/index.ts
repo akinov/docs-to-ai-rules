@@ -2,14 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { processDirectory } from './processor';
 import type { OutputService } from './services';
-
-export interface Config {
-  sourceDir: string;
-  services: OutputService[];
-  excludeFiles?: string[];
-  dryRun?: boolean;
-  sync?: boolean;
-}
+import type { Config } from './interfaces/configManager';
 
 export function convertDocs(config: Config): void {
   const { sourceDir, services, dryRun = false, sync = false } = config;
