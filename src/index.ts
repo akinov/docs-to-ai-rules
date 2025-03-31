@@ -5,58 +5,63 @@ import type { OutputService } from './services';
 import type { Config } from './interfaces/configManager';
 import { NodeFileSystemManager } from './utils/fileSystemManager';
 import { DirectoryNotFoundError, FileSystemError } from './errors';
+import logger from './logger';
 
-export function convertDocs(config: Config): void {
-  const { sourceDir, services, dryRun = false, sync = false } = config;
+export type { Config } from './interfaces/configManager';
+
+/**
+ * Main function to convert documentation based on configuration.
+ */
+export async function convertDocs(config: Config): Promise<void> {
+  const { sourceDir, services, excludeFiles = [], dryRun = false, sync = false } = config;
+  logger.info({ config: { ...config, services: config.services.map(s => s.name) } }, 'Starting documentation conversion');
+
   const fileSystemManager = new NodeFileSystemManager();
 
   try {
-    // Check if source directory exists using FileSystemManager
-    if (!fileSystemManager.fileExists(sourceDir)) {
+    // Check source directory existence first
+    if (!(await fileSystemManager.fileExists(sourceDir))) {
+      logger.error(`Source directory '${sourceDir}' not found.`);
       throw new DirectoryNotFoundError(sourceDir);
     }
 
-    // Process target directories using FileSystemManager
-    for (const service of services) {
+    // Prepare target directories (ensure they exist)
+    const targetDirPromises = services.map(async (service) => {
       const targetDir = service.getTargetDirectory();
-      const targetExists = fileSystemManager.fileExists(targetDir);
+      await fileSystemManager.ensureDirectoryExists(targetDir);
+      logger.debug(`Ensured target directory exists: ${targetDir}`);
+    });
+    await Promise.all(targetDirPromises);
 
-      if (!targetExists) {
-        if (!dryRun) {
-          fileSystemManager.ensureDirectoryExists(targetDir);
-        } else {
-          console.log(`[Dry Run] Would create directory ${targetDir}`);
-        }
-      } else if (sync) {
-        if (!dryRun) {
-          fileSystemManager.removeDirectoryIfExists(targetDir);
-          fileSystemManager.ensureDirectoryExists(targetDir);
-        } else {
-          console.log(`[Dry Run] Would format directory ${targetDir}`);
-        }
-      }
-    }
-
-    // Execute conversion
-    const result = processDirectory(config);
-    
     if (dryRun) {
-      if (result.updatedCount > 0) {
-        console.log(`[Dry Run] ${result.updatedCount} files need updates`);
-        for (const file of result.updatedFiles) {
-          console.log(`[Dry Run] File needs update: ${file}`);
-        }
-      } else {
-        console.log(`[Dry Run] No files need updates`);
-      }
-    } else {
-      console.log(`Processing complete: Converted ${result.processedCount} files to ${result.services.length} services`);
-      if (sync && result.deletedCount && result.deletedCount > 0) {
-        console.log(`Sync mode: Deleted ${result.deletedCount} outdated files`);
-      }
+      logger.info('[Dry Run] Skipping actual file processing and sync.');
+      logger.info('[Dry Run] Complete. No changes were made.');
+      return;
     }
-  } catch (err) {
-    throw err;
+
+    // Process the directory
+    const result = await processDirectory(config);
+
+    logger.info(
+      `Processing complete. Processed: ${result.processedCount}, Updated: ${result.updatedCount}, Deleted: ${result.deletedCount} (Sync)`
+    );
+    if (result.updatedFiles.length > 0) {
+      logger.info(`Updated files: ${result.updatedFiles.join(', ')}`);
+    }
+    if (result.deletedFiles.length > 0) {
+      logger.info(`Deleted files (Sync): ${result.deletedFiles.join(', ')}`);
+    }
+
+  } catch (error: any) {
+    if (error instanceof DirectoryNotFoundError) {
+      throw error;
+    } else if (error instanceof FileSystemError) {
+       logger.error({ err: error }, `File system error during conversion: ${error.message}`);
+      throw error;
+    } else {
+      logger.error({ err: error }, `An unexpected error occurred during conversion: ${error.message || error}`);
+      throw new Error(`Conversion failed: ${error.message || error}`);
+    }
   }
 }
 
