@@ -6,7 +6,7 @@ import { NodeFileSystemManager } from './utils/fileSystemManager';
 import { FileSystemError, DirectoryNotFoundError } from './errors';
 import { FileConverterImpl } from './processor/fileConverter';
 import { DirectorySynchronizerImpl } from './processor/directorySynchronizer';
-import logger from './logger'; // Import logger
+import logger from './logger';
 
 export interface ProcessResult {
   processedCount: number;
@@ -21,7 +21,7 @@ export interface ProcessResult {
 /**
  * Process Markdown files in a directory using FileSystemManager and component classes.
  */
-export function processDirectory(config: Config): ProcessResult {
+export async function processDirectory(config: Config): Promise<ProcessResult> {
   const { sourceDir, services, excludeFiles = [], dryRun = false, sync = false } = config;
 
   // Dependencies
@@ -42,11 +42,11 @@ export function processDirectory(config: Config): ProcessResult {
 
   let files: string[];
   try {
-    if (!fileSystemManager.fileExists(sourceDir)) {
+    if (!(await fileSystemManager.fileExists(sourceDir))) {
         logger.error(`Source directory not found: ${sourceDir}`); // Use logger
         throw new DirectoryNotFoundError(sourceDir);
     }
-    files = fileSystemManager.readDir(sourceDir);
+    files = await fileSystemManager.readDir(sourceDir);
     logger.info(`Processing ${files.length} files/directories in ${sourceDir}`); // Use logger
   } catch (err: any) {
      logger.error({ err, sourceDir }, `Failed to read source directory`); // Use logger
@@ -67,15 +67,17 @@ export function processDirectory(config: Config): ProcessResult {
     logger.debug({ count: sourceFilesBaseNames.size }, 'Collected source file base names for sync'); // Use logger
    }
 
-  // Process each file
-  for (const file of files) {
+  // Process each file - Use Promise.all for parallel processing
+  const processPromises = files.map(async (file) => {
     if (file.endsWith('.md') && !excludeFiles.includes(file)) {
       const sourcePath = path.join(sourceDir, file);
       let fileNeedsUpdateOverall = false;
 
+      // Process services sequentially for a single file for simplicity,
+      // or use Promise.all if services can be processed independently.
       for (const service of services) {
         try {
-          const updated = fileConverter.convertFile(sourcePath, file, service, dryRun);
+          const updated = await fileConverter.convertFile(sourcePath, file, service, dryRun);
           if (updated) {
             fileNeedsUpdateOverall = true;
           }
@@ -85,31 +87,47 @@ export function processDirectory(config: Config): ProcessResult {
         }
       }
 
-      result.processedCount++;
-      result.processedFiles.push(file);
-
-      if (fileNeedsUpdateOverall) {
-        result.updatedCount++;
-        result.updatedFiles.push(file);
-      }
+      // Return information about the processed file
+      return { file, updated: fileNeedsUpdateOverall };
     }
-  }
+    return null; // Return null for non-markdown files or excluded files
+  });
+
+  // Wait for all file processing to complete
+  const processedFilesInfo = (await Promise.all(processPromises)).filter(info => info !== null) as { file: string, updated: boolean }[];
+
+  // Update results based on processed files info
+  result.processedCount = processedFilesInfo.length;
+  result.processedFiles = processedFilesInfo.map(info => info.file);
+  result.updatedCount = processedFilesInfo.filter(info => info.updated).length;
+  result.updatedFiles = processedFilesInfo.filter(info => info.updated).map(info => info.file);
+
 
   if (sync) {
     logger.info('Starting directory synchronization'); // Use logger
-    for (const service of services) {
+    // Synchronize directories - Use Promise.all for parallel sync
+    const syncPromises = services.map(async (service) => {
       try {
-        const syncResult = directorySynchronizer.syncTargetDirectory(
+        const syncResult = await directorySynchronizer.syncTargetDirectory(
           sourceFilesBaseNames,
           service,
           dryRun
         );
-        result.deletedCount += syncResult.deletedCount;
-        result.deletedFiles.push(...syncResult.deletedFiles);
+        return syncResult;
       } catch (err) {
          logger.error({ err, service: service.name }, `Error syncing target directory for service`); // Use logger
-         // throw err; // Consider collecting errors
+         // Return an empty result or rethrow depending on desired error handling
+         return { deletedCount: 0, deletedFiles: [] };
       }
+    });
+
+    // Wait for all sync operations
+    const syncResults = await Promise.all(syncPromises);
+
+    // Aggregate sync results
+    for (const syncResult of syncResults) {
+        result.deletedCount += syncResult.deletedCount;
+        result.deletedFiles.push(...syncResult.deletedFiles);
     }
   }
 
