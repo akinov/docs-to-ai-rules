@@ -3,9 +3,9 @@ import type { OutputService } from '../services'; // Adjust path as needed
 export interface Config {
   sourceDir: string;
   services: OutputService[];
-  excludeFiles?: string[];
-  dryRun?: boolean;
-  sync?: boolean;
+  excludeFiles: string[];
+  dryRun: boolean;
+  sync: boolean;
 }
 
 export interface ConfigManager {
