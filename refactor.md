@@ -80,11 +80,11 @@ The project follows the architecture described in `core.mdc`:
 
 ## Refactoring Tasks
 
-- [ ] **Task 1: Create `FileSystemManager`**
+- [x] **Task 1: Create `FileSystemManager`**
     *   Define the interface for file system operations (including methods for directory setup, existence checks, stats, copying, deletion, and potentially `needsUpdate`).
     *   Implement the module using `fs` (initially synchronous, potentially async later).
     *   Refactor `src/index.ts` (`convertDocs`) to use `FileSystemManager` for directory setup.
-    *   Update related tests.
+    *   Update related tests. (Note: Tests have lint errors)
 
 - [ ] **Task 2: Refactor `processor.ts` - Part 1 (File System)**
     *   Refactor `processDirectory` to use `FileSystemManager` for file existence checks, stats, copying, and deletion.

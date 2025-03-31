@@ -3,48 +3,37 @@ import path from 'path';
 import { processDirectory } from './processor';
 import type { OutputService } from './services';
 import type { Config } from './interfaces/configManager';
+import { NodeFileSystemManager } from './utils/fileSystemManager';
 
 export function convertDocs(config: Config): void {
   const { sourceDir, services, dryRun = false, sync = false } = config;
+  const fileSystemManager = new NodeFileSystemManager();
 
-  // Check if source directory exists
-  if (!fs.existsSync(sourceDir)) {
+  // Check if source directory exists using FileSystemManager
+  if (!fileSystemManager.fileExists(sourceDir)) {
     console.error(`Error: Source directory ${sourceDir} does not exist`);
     process.exit(1);
   }
 
-  // Create target directories if not exist
+  // Process target directories using FileSystemManager
   for (const service of services) {
     const targetDir = service.getTargetDirectory();
     try {
-      if (!fs.existsSync(targetDir)) {
+      const targetExists = fileSystemManager.fileExists(targetDir);
+
+      if (!targetExists) {
         if (!dryRun) {
-          fs.mkdirSync(targetDir, { recursive: true });
-          console.log(`Created directory ${targetDir}`);
+          fileSystemManager.ensureDirectoryExists(targetDir);
         } else {
           console.log(`[Dry Run] Would create directory ${targetDir}`);
         }
-      } else if (sync && !dryRun) {
-        // In sync mode, clear out target directory first
-        console.log(`Formatting directory ${targetDir}`);
-        // We don't delete the directory itself to avoid permissions issues
-        // Just clear its contents for each service
-        const dirContents = fs.readdirSync(targetDir);
-        for (const item of dirContents) {
-          const itemPath = path.join(targetDir, item);
-          try {
-            if (fs.lstatSync(itemPath).isDirectory()) {
-              fs.rmSync(itemPath, { recursive: true, force: true });
-            } else {
-              fs.unlinkSync(itemPath);
-            }
-            console.log(`Removed ${itemPath}`);
-          } catch (err) {
-            console.error(`Error removing ${itemPath}`, err);
-          }
+      } else if (sync) {
+        if (!dryRun) {
+          fileSystemManager.removeDirectoryIfExists(targetDir);
+          fileSystemManager.ensureDirectoryExists(targetDir);
+        } else {
+          console.log(`[Dry Run] Would format directory ${targetDir}`);
         }
-      } else if (sync && dryRun) {
-        console.log(`[Dry Run] Would format directory ${targetDir}`);
       }
     } catch (err) {
       console.error(`Error: Could not process directory ${targetDir}`, err);
