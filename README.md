@@ -66,12 +66,18 @@ docs-to-ai-rules --sync
 
 ## How It Works
 
-This tool processes Markdown files in the `doc/rules` directory (or the specified source directory) and generates rule files for AI agents. The generated files are saved in the directories of the specified services.
+This tool functions primarily as a **file synchronization utility based on modification times**. It does **not** parse or transform the content of your Markdown files.
 
-- For Cursor: `./.cursor/rules` with `.mdc` extension
-- For Cline: `./.cline/rules` with `.md` extension
+Here's the process:
 
-If multiple services are specified, files will be generated in each service's directory with the appropriate file extension for that service.
+1.  The tool scans the specified source directory (default: `docs/rules`) for `.md` files (excluding those listed in `--exclude`).
+2.  For each source `.md` file found, it checks against the corresponding target file(s) in the directories defined by the specified `--services`.
+    *   **Cursor Service:** Outputs to `./.cursor/rules` with a `.mdc` extension.
+    *   **Cline Service:** Outputs to `./.cline/rules` with a `.md` extension.
+3.  A source file is copied to a target location if:
+    *   The target file does not exist.
+    *   The source file's last modification time (`mtimeMs`) is more recent than the target file's modification time.
+4.  The content of the file is copied verbatim.
 
 ### Dry Run Mode
 
@@ -84,7 +90,7 @@ In dry run mode:
 
 ### Sync Mode
 
-When the `--sync` option is used, the tool will:
+When the `--sync` option is used, the tool performs a more thorough synchronization:
 
 1. Clear the output directories (format) before copying files
 2. Delete files in the output directories that don't exist in the source directory
@@ -103,6 +109,7 @@ Sync mode can be combined with dry run mode to see what changes would be made wi
 ```bash
 docs-to-ai-rules --sync --dry-run
 ```
+Note: Sync mode also relies on file modification times for updates but adds the deletion of orphaned target files.
 
 ## Adding Custom Services
 
